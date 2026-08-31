@@ -9,13 +9,6 @@ pipeline {
 
     stages {
 
-        stage('GIT PULL') {
-            steps {
-                git branch: 'main',
-                    url: 'https://github.com/Jorik2018/rh_web_admin.git'
-            }
-        }
-
         stage('COMPILE RewriteFilter') {
             tools {
                 jdk 'JDK 17'
