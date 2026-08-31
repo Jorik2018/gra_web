@@ -520,22 +520,27 @@ public class RewriteFilter implements Filter {
     return ((Integer)request.getAttribute(FILTER_COUNT_KEY)).intValue();
   }
   
-  private void decrementFilterCount(ServletRequest request) {
-    Integer count = (Integer)request.getAttribute(FILTER_COUNT_KEY);
-    if (count != null)
-      Integer integer1 = count, integer2 = count = Integer.valueOf(count.intValue() - 1); 
+private void decrementFilterCount(ServletRequest request) {
+    Integer count = (Integer) request.getAttribute(FILTER_COUNT_KEY);
+
+    if (count != null) {
+        count = Integer.valueOf(count.intValue() - 1);
+    }
+
     request.setAttribute(FILTER_COUNT_KEY, count);
-  }
+}
   
-  private void incrementFilterCount(ServletRequest request) {
-    Integer count = (Integer)request.getAttribute(FILTER_COUNT_KEY);
+private void incrementFilterCount(ServletRequest request) {
+    Integer count = (Integer) request.getAttribute(FILTER_COUNT_KEY);
+
     if (count == null) {
-      count = Integer.valueOf(1);
+        count = Integer.valueOf(1);
     } else {
-      Integer integer1 = count, integer2 = count = Integer.valueOf(count.intValue() + 1);
-    } 
+        count = Integer.valueOf(count.intValue() + 1);
+    }
+
     request.setAttribute(FILTER_COUNT_KEY, count);
-  }
+}
   
   private SystemFacadeLocal lookupSystemFacadeLocal() {
     try {
