@@ -21,38 +21,65 @@ pipeline {
                 jdk 'JDK 17'
             }
 
-            steps {
-                bat '''
-                    @echo off
+steps {
+    bat '''
+        @echo off
+        setlocal enabledelayedexpansion
 
-                    echo ========================================
-                    echo Limpiando compilacion anterior
-                    echo ========================================
+        echo ========================================
+        echo Directorio actual
+        echo ========================================
+        cd
 
-                    if exist build rmdir /S /Q build
-                    mkdir build
-                    mkdir build\\classes
+        echo.
+        echo ========================================
+        echo Limpiando compilacion anterior
+        echo ========================================
 
-                    echo.
-                    echo ========================================
-                    echo Compilando RewriteFilter.java
-                    echo ========================================
+        if exist build rmdir /S /Q build
+        mkdir build
+        mkdir build\\classes
 
-                    javac ^
-                      -cp "lib\\*" ^
-                      -d build\\classes ^
-                      src\\org\\ocpsoft\\rewrite\\servlet\\RewriteFilter.java
+        echo.
+        echo ========================================
+        echo Buscando RewriteFilter.java
+        echo ========================================
 
-                    if errorlevel 1 exit /b 1
+        set SOURCE_FILE=
 
-                    echo.
-                    echo ========================================
-                    echo Classes generadas
-                    echo ========================================
+        for /R %%F in (RewriteFilter.java) do (
+            set SOURCE_FILE=%%F
+        )
 
-                    dir /S build\\classes\\*.class
-                '''
-            }
+        if not defined SOURCE_FILE (
+            echo ERROR: No se encontro RewriteFilter.java
+            exit /b 1
+        )
+
+        echo Encontrado:
+        echo !SOURCE_FILE!
+
+        echo.
+        echo ========================================
+        echo Compilando RewriteFilter.java
+        echo ========================================
+
+        javac ^
+          -cp "lib\\*" ^
+          -sourcepath src ^
+          -d build\\classes ^
+          "!SOURCE_FILE!"
+
+        if errorlevel 1 exit /b 1
+
+        echo.
+        echo ========================================
+        echo Classes generadas
+        echo ========================================
+
+        dir /S /B build\\classes\\*.class
+    '''
+}
         }
 
         stage('EXTRACT WAR') {
