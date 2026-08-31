@@ -387,7 +387,7 @@ pipeline {
              */
 
             when {
-                expression { false }
+                expression { true }
             }
 
             steps {
