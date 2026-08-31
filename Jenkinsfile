@@ -41,7 +41,7 @@ pipeline {
                     javac ^
                       -cp "lib\\*" ^
                       -d build\\classes ^
-                      src\\org\\ocpsoft\\rewrite\\RewriteFilter.java
+                      src\\org\\ocpsoft\\rewrite\\servlet\\RewriteFilter.java
 
                     if errorlevel 1 exit /b 1
 

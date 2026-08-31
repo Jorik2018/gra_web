@@ -1,4 +1,4 @@
-package org.ocpsoft.rewrite;
+package org.ocpsoft.rewrite.servlet;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -27,6 +27,8 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
 import org.isobit.app.X;
 import org.isobit.app.ejb.MenuFacadeLocal;
 import org.isobit.app.ejb.SystemFacadeLocal;
@@ -40,12 +42,12 @@ import org.ocpsoft.common.services.ServiceLoader;
 import org.ocpsoft.common.spi.ServiceEnricher;
 import org.ocpsoft.common.util.Iterators;
 import org.ocpsoft.logging.Logger;
+import org.ocpsoft.rewrite.AbstractRewrite;
+import org.ocpsoft.rewrite.Version;
 import org.ocpsoft.rewrite.config.ConfigurationProvider;
 import org.ocpsoft.rewrite.el.spi.ExpressionLanguageProvider;
 import org.ocpsoft.rewrite.event.Flow;
 import org.ocpsoft.rewrite.event.Rewrite;
-import org.ocpsoft.rewrite.servlet.RewriteFilter;
-import org.ocpsoft.rewrite.servlet.ServletRewriteProvider;
 import org.ocpsoft.rewrite.servlet.event.BaseRewrite;
 import org.ocpsoft.rewrite.servlet.event.InboundServletRewrite;
 import org.ocpsoft.rewrite.servlet.impl.HttpRewriteContextImpl;
@@ -63,16 +65,9 @@ import org.ocpsoft.rewrite.spi.RewriteProvider;
 import org.ocpsoft.rewrite.util.ServiceLogger;
 
 public class RewriteFilter implements Filter {
-  private static String DEFAULT_TEMPLATE = null;
+  private static String DEFAULT_TEMPLATE = "/template.xhtml";
   
-  static {
-    try {
-      Class.forName("org.primefaces.util.Constants");
-      DEFAULT_TEMPLATE = "/template.xhtml";
-    } catch (Exception e) {
-      DEFAULT_TEMPLATE = "/template-vue.xhtml";
-    } 
-  }
+  private static String MAIN_SESSION_ID = "MAIN_TOKEN";
   
   private static Logger log = Logger.getLogger(RewriteFilter.class);
   
@@ -202,6 +197,8 @@ public class RewriteFilter implements Filter {
     } 
   }
   
+  private Client client = ClientBuilder.newClient();
+  
   public boolean preFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {
     try {
       HttpServletRequest request = (HttpServletRequest)req;
@@ -221,19 +218,11 @@ public class RewriteFilter implements Filter {
         if (requestURI.startsWith("/"))
           requestURI = requestURI.substring(1); 
         String[] q = requestURI.split("/");
-        X.log("Q=>" + X.gson.toJson(q));
         q[q.length - 1] = q[q.length - 1].replaceAll(".xhtml", "");
         if (request.getAttribute("#q") == null) {
           request.setAttribute("#q", q);
           request.setAttribute("#requestURI", requestURI);
         } 
-        boolean isLocalhost = request.getRequestURL().toString().startsWith("http://localhost");
-        if (session == null)
-          session = request.getSession(true); 
-        X.setSession(session);
-        X.setRequest(request);
-        request.setAttribute("_MSG", X.getSession().getAttribute("_MSG"));
-        X.getSession().removeAttribute("_MSG");
         String URI = requestURI.toLowerCase();
         if (URI.contains("javax.faces.resource") || URI
           .endsWith(".jpg") || URI
@@ -254,6 +243,15 @@ public class RewriteFilter implements Filter {
           chain.doFilter(req, (ServletResponse)response);
           return false;
         } 
+        if (session == null) {
+          session = request.getSession(true);
+          System.out.println("FILTER CREA SESSION " + session.getId() + " - " + URI + " res=" + response.getStatus());
+        } 
+        X.setSession(session);
+        X.setRequest(request);
+        request.setAttribute("_MSG", X.getSession().getAttribute("_MSG"));
+        X.getSession().removeAttribute("_MSG");
+        X.log("Q=>" + X.gson.toJson(q));
         String logout = req.getParameter("action");
         if ("logout".equals(logout)) {
           ((UserFacadeLocal)(new InitialContext()).lookup("java:module/UserFacade")).logout();
@@ -283,10 +281,13 @@ public class RewriteFilter implements Filter {
             } 
           } 
         } 
+        boolean isLocalhost = request.getRequestURL().toString().startsWith("http://localhost");
         if (isLocalhost && session != null && session.getAttribute("_USER") == null)
           try {
+            System.out.println("CREAR USUARIO PARA LOCALHOST");
             ((TestFacadeLocal)((AbstractFacadeLocal)(new InitialContext()).lookup("java:module/PeopleFacadeLocalImpl")).getModule(TestFacadeLocal.class)).init(session);
           } catch (Exception e) {
+            e.printStackTrace();
             X.log(e);
           }  
         if (requestURI.contains("/api/") || "api"
@@ -304,26 +305,40 @@ public class RewriteFilter implements Filter {
                 .equals(q[0])) ? DEFAULT_TEMPLATE : "/nodeTemplate.xhtml");
           }  
         if (isLocalhost || requestURI
-          .endsWith("/login.xhtml") || requestURI
+          .startsWith("login") || requestURI
           .endsWith("/register") || requestURI
           .startsWith("user/reset/") || requestURI
           .endsWith("/password") || session
-          
-          .getAttribute("_USER") != null || !requestURI.startsWith("admin")) {
+          .getAttribute("_USER") != null || 
+          !requestURI.startsWith("admin")) {
           X.DEBUG = true;
           String destinyRequest = req.getParameter("destiny");
-          if (!XUtil.isEmpty(destinyRequest) && requestURI.endsWith("/login.xhtml")) {
-            User user = (User)session.getAttribute("_USER");
+          User user = (User)session.getAttribute("_USER");
+          if (!isLocalhost && user != null && !contextPath.equals("")) {
+            String mainSessionId = (String)X.getSession().getAttribute(MAIN_SESSION_ID);
+            System.out.println("SESS=" + X.getSession().getId() + " Este es el primer intento para validar el session mainSessionId=" + mainSessionId);
+            int uid = (mainSessionId != null) ? ((Integer)this.client.target("http://localhost:" + X.getRequest().getLocalPort() + "/api/session/logged/" + mainSessionId).request().get(Integer.class)).intValue() : 0;
+            if (uid <= 0) {
+              ((UserFacadeLocal)(new InitialContext()).lookup("java:module/UserFacade")).logout();
+              response.sendRedirect("/" + requestURI);
+              return false;
+            } 
+          } 
+          if (!XUtil.isEmpty(destinyRequest) && requestURI.equals("login")) {
+            System.out.println("u=" + user);
             if (user != null && user.getUid().intValue() > 0) {
-              ((UserFacadeLocal)(new InitialContext()).lookup("java:module/UserFacade")).initSession(user.getUid());
-              response.sendRedirect("/" + destinyRequest + "?access_token=" + user.getUid());
+              String token = X.toText(X.getClientIpAddr(X.getRequest())).replace(".", "") + "." + Character.MIN_VALUE + "." + X.getRequest().getSession().getId();
+              System.out.println("Redirect /" + destinyRequest + "?access_token=" + token);
+              response.sendRedirect("/" + destinyRequest + "?access_token=" + token);
               return true;
             } 
           } 
           if (destinyRequest != null)
-            request.getSession().setAttribute("_DESTINY", destinyRequest); 
-          if (req.getAttribute("noload") != null)
-            return true; 
+            session.setAttribute("_DESTINY", destinyRequest); 
+          if (req.getAttribute("noload") != null) {
+            System.out.println("no load");
+            return true;
+          } 
           if (requestURI.startsWith("admin") || requestURI.startsWith("faces/")) {
             String access_token = req.getParameter("access_token");
             if (access_token != null) {
@@ -332,14 +347,7 @@ public class RewriteFilter implements Filter {
                 requestURI = requestURI + "?modal"; 
               if (session.getAttribute("_USER") == null) {
                 Object uid = req.getParameter("uid");
-                if (uid != null) {
-                  Map m = validateToken(access_token);
-                  if (XUtil.booleanValue(m.get("valid"))) {
-                    ((UserFacadeLocal)(new InitialContext()).lookup("java:module/UserFacade")).initSession(Integer.valueOf(XUtil.intValue(uid)));
-                    response.sendRedirect("/" + requestURI);
-                    return false;
-                  } 
-                } else {
+                if (uid == null) {
                   ((UserFacadeLocal)(new InitialContext()).lookup("java:module/UserFacade")).initSession(Integer.valueOf(XUtil.intValue(access_token)));
                   response.sendRedirect("/" + requestURI);
                   return false;
@@ -366,40 +374,43 @@ public class RewriteFilter implements Filter {
           } else if (requestURI.endsWith(".xhtml")) {
             req.setAttribute("noload", Boolean.valueOf(true));
           } else {
-            X.log("Se desactiva autentificacion para los redireccionamiento despues de '" + requestURI + "'; solo se solicitan login a url entrantes que empiezen con admin o faces.");
             req.setAttribute("-checkedAccess", Boolean.valueOf(true));
           } 
         } else if (req.getAttribute("-checkedAccess") == null) {
-          System.out.println("Despues de -checkedAccess " + requestURI);
           if ("faces/".equals(requestURI))
             requestURI = null; 
           String access_token = req.getParameter("access_token");
           User user = (User)session.getAttribute("_USER");
+          System.out.println("context-path=" + request.getContextPath());
+          String mainSessionId = (String)session.getAttribute(MAIN_SESSION_ID);
           if (access_token != null && user == null) {
-            System.out.println("session=" + session);
-            System.out.println("session=" + session);
-            System.out.println("Se inicia session para user=" + access_token);
-            String[] tt = access_token.split("[.]");
-            if (tt.length == 1) {
-              user = ((UserFacadeLocal)(new InitialContext()).lookup("java:module/UserFacade")).initSession(Integer.valueOf(XUtil.intValue(access_token)));
+            String[] tr = access_token.split("[.]");
+            String sessionId = tr[2];
+            System.out.println("Preguntando al main si es valido el id=" + sessionId);
+            int uid = ((Integer)this.client.target("http://localhost:" + X.getRequest().getLocalPort() + "/api/session/logged/" + sessionId).request().get(Integer.class)).intValue();
+            if (uid > -1) {
+              System.out.println("Es valido se inicia session");
+              user = ((UserFacadeLocal)(new InitialContext()).lookup("java:module/UserFacade")).initSession(Integer.valueOf(uid));
               if (user != null) {
-                System.out.println("USER INICIADO=" + session.getAttribute("_USER") + " Despues se redirige a /" + requestURI);
-                session.setAttribute("_USER", user);
+                X.getSession().setAttribute(MAIN_SESSION_ID, sessionId);
+                System.out.println("SESS=" + X.getSession().getId() + " guarda mainSessionId=" + mainSessionId + " USER INICIADO=" + user + " en contextPath=" + contextPath + " Despues se redirige a /" + requestURI);
                 response.sendRedirect("/" + requestURI);
                 return false;
               } 
-            } else if (X.toText(X.getClientIpAddr(X.getRequest())).equals(access_token.split(".")[0])) {
-              user = ((UserFacadeLocal)(new InitialContext()).lookup("java:module/UserFacade")).initSessionByToken(access_token);
-              if (user != null) {
-                session.setAttribute("_USER", user);
-                response.sendRedirect("/" + requestURI);
-                return false;
-              } 
+            } else {
+              System.out.println("fallo valido se inicia session " + sessionId);
+            } 
+          } else if (user != null) {
+            mainSessionId = (String)X.getSession().getAttribute(MAIN_SESSION_ID);
+            int uid = ((Integer)this.client.target("http://localhost:" + X.getRequest().getLocalPort() + "/api/session/logged/" + mainSessionId).request().get(Integer.class)).intValue();
+            if (uid <= 0) {
+              ((UserFacadeLocal)(new InitialContext()).lookup("java:module/UserFacade")).logout();
+              response.sendRedirect("/" + requestURI);
+              return false;
             } 
           } 
-          session.setAttribute("_DESTINY", requestURI);
-          System.out.println("response.sendRedirect " + user + " - " + session.getAttribute("_USER") + " - /faces/login.xhtml?destiny=" + requestURI);
-          response.sendRedirect("/faces/login.xhtml?destiny=" + requestURI);
+          request.getSession().setAttribute("_DESTINY", requestURI);
+          response.sendRedirect("/login?destiny=" + requestURI);
           return false;
         } 
       } 
@@ -435,16 +446,16 @@ public class RewriteFilter implements Filter {
     String keyName = "";
     while (parser.hasNext()) {
       JsonParser.Event e = parser.next();
-      switch (null.$SwitchMap$javax$json$stream$JsonParser$Event[e.ordinal()]) {
-        case 1:
+      switch (e) {
+        case VALUE_NUMBER:
           m.put(keyName, Integer.valueOf(parser.getInt()));
-        case 2:
+        case VALUE_STRING:
           m.put(keyName, parser.getString());
-        case 3:
+        case VALUE_TRUE:
           m.put(keyName, Boolean.valueOf(true));
-        case 4:
+        case VALUE_FALSE:
           m.put(keyName, Boolean.valueOf(false));
-        case 5:
+        case KEY_NAME:
           keyName = parser.getString();
           switch (keyName) {
             case "valido":
