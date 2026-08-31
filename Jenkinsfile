@@ -82,11 +82,12 @@ steps {
         echo ========================================
 
         javac ^
-          -cp "lib\\*" ^
+          -cp "lib\\*;C:\\wildfly-18.0.1.Final\\modules\\system\\layers\\base\\javax\\json\\api\\main\\jakarta.json-api-1.1.6.jar" ^
           -sourcepath src ^
           -d build\\classes ^
           "!SOURCE_FILE!"
 
+          
         if errorlevel 1 exit /b 1
 
         echo.
