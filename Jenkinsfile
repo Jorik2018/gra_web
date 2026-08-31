@@ -42,22 +42,32 @@ steps {
 
         echo.
         echo ========================================
-        echo Buscando RewriteFilter.java
+        echo Buscando RewriteFilter.java REAL
         echo ========================================
 
         set SOURCE_FILE=
 
-        for /R %%F in (RewriteFilter.java) do (
+        for /F "delims=" %%F in ('dir /S /B RewriteFilter.java 2^>nul') do (
+            echo Encontrado: %%F
             set SOURCE_FILE=%%F
         )
 
         if not defined SOURCE_FILE (
-            echo ERROR: No se encontro RewriteFilter.java
+            echo.
+            echo ERROR: No existe RewriteFilter.java en el workspace
             exit /b 1
         )
 
-        echo Encontrado:
+        echo.
+        echo ========================================
+        echo Archivo que se compilara
+        echo ========================================
         echo !SOURCE_FILE!
+
+        if not exist "!SOURCE_FILE!" (
+            echo ERROR: El archivo seleccionado no existe
+            exit /b 1
+        )
 
         echo.
         echo ========================================
@@ -78,6 +88,8 @@ steps {
         echo ========================================
 
         dir /S /B build\\classes\\*.class
+
+        endlocal
     '''
 }
         }
