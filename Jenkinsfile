@@ -87,7 +87,7 @@ steps {
           -d build\\classes ^
           "!SOURCE_FILE!"
 
-          
+
         if errorlevel 1 exit /b 1
 
         echo.
@@ -136,8 +136,8 @@ steps {
 
         stage('PATCH JAR') {
             when {
-        expression { false }
-    }
+                expression { false }
+            }
             tools {
                 jdk 'JDK 17'
             }
@@ -178,9 +178,7 @@ steps {
         }
 
         stage('BUILD PATCHED WAR') {
-            when {
-        expression { false }
-    }
+        
             tools {
                 jdk 'JDK 17'
             }
