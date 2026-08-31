@@ -9,6 +9,20 @@ pipeline {
 
     stages {
 
+        stage('FIND JSON JARS') {
+    steps {
+        bat '''
+            @echo off
+
+            echo ========================================
+            echo BUSCANDO JARS JSON EN WILDFLY
+            echo ========================================
+
+            dir /S /B C:\\wildfly-18.0.1.Final\\modules\\system\\layers\\base\\javax\\*.jar | findstr /I "json"
+        '''
+    }
+}
+
         stage('COMPILE RewriteFilter') {
             tools {
                 jdk 'JDK 17'
