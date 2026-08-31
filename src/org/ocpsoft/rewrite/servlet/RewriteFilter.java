@@ -65,488 +65,538 @@ import org.ocpsoft.rewrite.spi.RewriteProvider;
 import org.ocpsoft.rewrite.util.ServiceLogger;
 
 public class RewriteFilter implements Filter {
-  private static String DEFAULT_TEMPLATE = "/template.xhtml";
-  
-  private static String MAIN_SESSION_ID = "MAIN_TOKEN";
-  
-  private static Logger log = Logger.getLogger(RewriteFilter.class);
-  
-  private static String FILTER_COUNT_KEY = RewriteFilter.class.getName() + "_FILTER_COUNT";
-  
-  private List<RewriteLifecycleListener<Rewrite>> listeners;
-  
-  private List<RequestCycleWrapper<ServletRequest, ServletResponse>> wrappers;
-  
-  private List<RewriteProvider<ServletContext, Rewrite>> providers;
-  
-  private List<RewriteResultHandler> resultHandlers;
-  
-  private List<InboundRewriteProducer<ServletRequest, ServletResponse>> inbound;
-  
-  private List<OutboundRewriteProducer<ServletRequest, ServletResponse, Object>> outbound;
-  
-  private ServletContext servletContext;
-  
-  public void init(FilterConfig filterConfig) throws ServletException {
-    if (log.isInfoEnabled())
-      log.info("RewriteFilter starting up..."); 
-    this.servletContext = filterConfig.getServletContext();
-    this.listeners = Iterators.asList((Iterable)ServiceLoader.load(RewriteLifecycleListener.class));
-    this.wrappers = Iterators.asList((Iterable)ServiceLoader.load(RequestCycleWrapper.class));
-    this.providers = Iterators.asList((Iterable)ServiceLoader.load(RewriteProvider.class));
-    this.resultHandlers = Iterators.asList((Iterable)ServiceLoader.load(RewriteResultHandler.class));
-    this.inbound = Iterators.asList((Iterable)ServiceLoader.load(InboundRewriteProducer.class));
-    this.outbound = Iterators.asList((Iterable)ServiceLoader.load(OutboundRewriteProducer.class));
-    Collections.sort(this.listeners, (Comparator<? super RewriteLifecycleListener<Rewrite>>)new WeightedComparator());
-    Collections.sort(this.wrappers, (Comparator<? super RequestCycleWrapper<ServletRequest, ServletResponse>>)new WeightedComparator());
-    Collections.sort(this.providers, (Comparator<? super RewriteProvider<ServletContext, Rewrite>>)new WeightedComparator());
-    Collections.sort(this.resultHandlers, (Comparator<? super RewriteResultHandler>)new WeightedComparator());
-    Collections.sort(this.inbound, (Comparator<? super InboundRewriteProducer<ServletRequest, ServletResponse>>)new WeightedComparator());
-    Collections.sort(this.outbound, (Comparator<? super OutboundRewriteProducer<ServletRequest, ServletResponse, Object>>)new WeightedComparator());
-    ServiceLogger.logLoadedServices(log, RewriteLifecycleListener.class, this.listeners);
-    ServiceLogger.logLoadedServices(log, RequestCycleWrapper.class, this.wrappers);
-    ServiceLogger.logLoadedServices(log, RewriteProvider.class, this.providers);
-    ServiceLogger.logLoadedServices(log, RewriteResultHandler.class, this.resultHandlers);
-    ServiceLogger.logLoadedServices(log, InboundRewriteProducer.class, this.inbound);
-    ServiceLogger.logLoadedServices(log, OutboundRewriteProducer.class, this.outbound);
-    ServiceLogger.logLoadedServices(log, ContextListener.class, 
-        Iterators.asList((Iterable)ServiceLoader.load(ContextListener.class)));
-    ServiceLogger.logLoadedServices(log, RequestListener.class, 
-        Iterators.asList((Iterable)ServiceLoader.load(RequestListener.class)));
-    ServiceLogger.logLoadedServices(log, RequestParameterProvider.class, 
-        Iterators.asList((Iterable)ServiceLoader.load(RequestParameterProvider.class)));
-    ServiceLogger.logLoadedServices(log, ExpressionLanguageProvider.class, 
-        Iterators.asList((Iterable)ServiceLoader.load(ExpressionLanguageProvider.class)));
-    ServiceLogger.logLoadedServices(log, InvocationResultHandler.class, 
-        Iterators.asList((Iterable)ServiceLoader.load(InvocationResultHandler.class)));
-    ServiceLogger.logLoadedServices(log, ServiceEnricher.class, 
-        Iterators.asList((Iterable)ServiceLoader.load(ServiceEnricher.class)));
-    ServiceLogger.logLoadedServices(log, ConfigurationCacheProvider.class, 
-        Iterators.asList((Iterable)ServiceLoader.load(ConfigurationCacheProvider.class)));
-    List<ConfigurationProvider<?>> configurations = Iterators.asList(
-        (Iterable)ServiceLoader.load(ConfigurationProvider.class));
-    ServiceLogger.logLoadedServices(log, ConfigurationProvider.class, configurations);
-    for (RewriteProvider<ServletContext, Rewrite> provider : this.providers) {
-      if (provider instanceof ServletRewriteProvider)
-        ((ServletRewriteProvider)provider).init(this.servletContext); 
-    } 
-    if ((configurations == null || configurations.isEmpty()) && 
-      log.isWarnEnabled())
-      log.warn("No ConfigurationProviders were registered: Rewrite will not be enabled on this application. Did you forget to create a '/META-INF/services/" + ConfigurationProvider.class
-          
-          .getName() + " file containing the fully qualified name of your provider implementation?"); 
-    if (log.isInfoEnabled())
-      log.info(Version.getFullName() + " initialized."); 
-  }
-  
-  public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
-    if (!preFilter(request, response, chain))
-      return; 
-    if (request.getAttribute("noload") != null)
-      chain.doFilter(request, response); 
-    InboundServletRewrite<ServletRequest, ServletResponse> event = createRewriteEvent(request, response);
-    if (event == null) {
-      if (log.isWarnEnabled())
-        log.warn("No Rewrite event was produced - RewriteFilter disabled on this request."); 
-      chain.doFilter(request, response);
-    } else {
-      incrementFilterCount(request);
-      if (request.getAttribute("_com.ocpsoft.rewrite.RequestContext") == null) {
-        HttpRewriteContextImpl httpRewriteContextImpl = new HttpRewriteContextImpl(this.inbound, this.outbound, this.listeners, this.resultHandlers, this.wrappers, this.providers);
-        request.setAttribute("_com.ocpsoft.rewrite.RequestContext", httpRewriteContextImpl);
-      } 
-      for (RewriteLifecycleListener<Rewrite> listener : this.listeners) {
-        if (listener.handles(event))
-          listener.beforeInboundLifecycle((Rewrite)event); 
-      } 
-      for (RequestCycleWrapper<ServletRequest, ServletResponse> wrapper : this.wrappers) {
-        if (wrapper.handles(event)) {
-          event.setRequest(wrapper.wrapRequest(event.getRequest(), event.getResponse(), this.servletContext));
-          event.setResponse(wrapper.wrapResponse(event.getRequest(), event.getResponse(), this.servletContext));
-        } 
-      } 
-      try {
-        rewrite(event);
-      } catch (ServletException e) {
-        if (getFilterCount(request) == 1)
-          AbstractRewrite.logEvaluatedRules((Rewrite)event, Logger.Level.ERROR); 
-        decrementFilterCount(request);
-        throw e;
-      } catch (RuntimeException e) {
-        if (getFilterCount(request) == 1)
-          AbstractRewrite.logEvaluatedRules((Rewrite)event, Logger.Level.ERROR); 
-        decrementFilterCount(request);
-        throw e;
-      } 
-      if (!event.getFlow().is((Flow)BaseRewrite.ServletRewriteFlow.ABORT_REQUEST)) {
-        if (log.isDebugEnabled())
-          log.debug("RewriteFilter passing control of request to underlying application."); 
-        if (response.isCommitted() && log.isWarnEnabled())
-          log.warn("Response has already been committed, and further write operations are not permitted. This may result in an IllegalStateException being triggered by the underlying application. To avoid this situation, consider adding a Rule `.when(Direction.isInbound().and(Response.isCommitted())).perform(Lifecycle.abort())`, or figure out where the response is being incorrectly committed and correct the bug in the offending code."); 
-        chain.doFilter(event.getRequest(), event.getResponse());
-        if (log.isDebugEnabled())
-          log.debug("Control of request returned to RewriteFilter."); 
-      } 
-      for (RewriteLifecycleListener<Rewrite> listener : this.listeners) {
-        if (listener.handles(event))
-          listener.afterInboundLifecycle((Rewrite)event); 
-      } 
-      if (getFilterCount(request) == 1)
-        AbstractRewrite.logEvaluatedRules((Rewrite)event, Logger.Level.DEBUG); 
-      decrementFilterCount(request);
-    } 
-  }
-  
-  private Client client = ClientBuilder.newClient();
-  
-  public boolean preFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {
-    try {
-      HttpServletRequest request = (HttpServletRequest)req;
-      HttpServletResponse response = (HttpServletResponse)res;
-      if (request != null) {
-        HttpSession session = request.getSession(false);
-        String requestURI = request.getRequestURI();
-        int p = requestURI.indexOf(";jsessionid");
-        if (p > -1)
-          requestURI = requestURI.substring(0, p); 
-        String contextPath = request.getContextPath();
-        if (X.CONTEXT_PATH == null)
-          X.CONTEXT_PATH = contextPath; 
-        request.setAttribute("contextPath", contextPath);
-        if (requestURI.endsWith("/"))
-          requestURI = requestURI.substring(0, requestURI.length() - 1); 
-        if (requestURI.startsWith("/"))
-          requestURI = requestURI.substring(1); 
-        String[] q = requestURI.split("/");
-        q[q.length - 1] = q[q.length - 1].replaceAll(".xhtml", "");
-        if (request.getAttribute("#q") == null) {
-          request.setAttribute("#q", q);
-          request.setAttribute("#requestURI", requestURI);
-        } 
-        String URI = requestURI.toLowerCase();
-        if (URI.contains("javax.faces.resource") || URI
-          .endsWith(".jpg") || URI
-          .endsWith(".js") || URI
-          .endsWith(".ttf") || URI
-          .endsWith(".properties") || URI
-          .endsWith(".png") || URI
-          .endsWith(".gif") || URI
-          .endsWith(".png") || URI
-          .endsWith(".css") || URI
-          .endsWith(".png") || URI
-          .endsWith(".svg") || URI
-          .endsWith(".ico")) {
-          req.setAttribute(X.NO_LOAD, Boolean.valueOf(true));
-          String destinyRequest = req.getParameter("destiny");
-          if (destinyRequest != null)
-            request.getSession().setAttribute("_DESTINY", destinyRequest); 
-          chain.doFilter(req, (ServletResponse)response);
-          return false;
-        } 
-        if (session == null) {
-          session = request.getSession(true);
-          System.out.println("FILTER CREA SESSION " + session.getId() + " - " + URI + " res=" + response.getStatus());
-        } 
-        X.setSession(session);
-        X.setRequest(request);
-        request.setAttribute("_MSG", X.getSession().getAttribute("_MSG"));
-        X.getSession().removeAttribute("_MSG");
-        X.log("Q=>" + X.gson.toJson(q));
-        String logout = req.getParameter("action");
-        if ("logout".equals(logout)) {
-          ((UserFacadeLocal)(new InitialContext()).lookup("java:module/UserFacade")).logout();
-          response.sendRedirect("/" + requestURI);
-          return false;
-        } 
-        if (req.getAttribute(X.NO_LOAD) != null) {
-          chain.doFilter(req, (ServletResponse)response);
-          return false;
-        } 
-        if (request.getAttribute("URL_ENTER") == null && req.getAttribute(X.NO_LOAD) == null)
-          request.setAttribute("URL_ENTER", requestURI); 
-        if (!X.installed) {
-          SystemFacadeLocal systemFacade = lookupSystemFacadeLocal();
-          Map m = systemFacade.getConfig("SYSTEM");
-          if (m == null || 
-            !m.containsKey("installed") || 
-            !(X.installed = systemFacade.hasAdmin())) {
-            if (!requestURI.endsWith("faces/Install.xhtml")) {
-              response.sendRedirect("/faces/Install.xhtml");
-              return false;
-            } 
+    private static String DEFAULT_TEMPLATE = "/template.xhtml";
+
+    private static String MAIN_SESSION_ID = "MAIN_TOKEN";
+
+    private static Logger log = Logger.getLogger(RewriteFilter.class);
+
+    private static String FILTER_COUNT_KEY = RewriteFilter.class.getName() + "_FILTER_COUNT";
+
+    private List<RewriteLifecycleListener<Rewrite>> listeners;
+
+    private List<RequestCycleWrapper<ServletRequest, ServletResponse>> wrappers;
+
+    private List<RewriteProvider<ServletContext, Rewrite>> providers;
+
+    private List<RewriteResultHandler> resultHandlers;
+
+    private List<InboundRewriteProducer<ServletRequest, ServletResponse>> inbound;
+
+    private List<OutboundRewriteProducer<ServletRequest, ServletResponse, Object>> outbound;
+
+    private ServletContext servletContext;
+
+    public void init(FilterConfig filterConfig) throws ServletException {
+        if (log.isInfoEnabled())
+            log.info("RewriteFilter starting up...");
+        this.servletContext = filterConfig.getServletContext();
+        this.listeners = Iterators.asList((Iterable) ServiceLoader.load(RewriteLifecycleListener.class));
+        this.wrappers = Iterators.asList((Iterable) ServiceLoader.load(RequestCycleWrapper.class));
+        this.providers = Iterators.asList((Iterable) ServiceLoader.load(RewriteProvider.class));
+        this.resultHandlers = Iterators.asList((Iterable) ServiceLoader.load(RewriteResultHandler.class));
+        this.inbound = Iterators.asList((Iterable) ServiceLoader.load(InboundRewriteProducer.class));
+        this.outbound = Iterators.asList((Iterable) ServiceLoader.load(OutboundRewriteProducer.class));
+        Collections.sort(this.listeners,
+                (Comparator<? super RewriteLifecycleListener<Rewrite>>) new WeightedComparator());
+        Collections.sort(this.wrappers,
+                (Comparator<? super RequestCycleWrapper<ServletRequest, ServletResponse>>) new WeightedComparator());
+        Collections.sort(this.providers,
+                (Comparator<? super RewriteProvider<ServletContext, Rewrite>>) new WeightedComparator());
+        Collections.sort(this.resultHandlers, (Comparator<? super RewriteResultHandler>) new WeightedComparator());
+        Collections.sort(this.inbound,
+                (Comparator<? super InboundRewriteProducer<ServletRequest, ServletResponse>>) new WeightedComparator());
+        Collections.sort(this.outbound,
+                (Comparator<? super OutboundRewriteProducer<ServletRequest, ServletResponse, Object>>) new WeightedComparator());
+        ServiceLogger.logLoadedServices(log, RewriteLifecycleListener.class, this.listeners);
+        ServiceLogger.logLoadedServices(log, RequestCycleWrapper.class, this.wrappers);
+        ServiceLogger.logLoadedServices(log, RewriteProvider.class, this.providers);
+        ServiceLogger.logLoadedServices(log, RewriteResultHandler.class, this.resultHandlers);
+        ServiceLogger.logLoadedServices(log, InboundRewriteProducer.class, this.inbound);
+        ServiceLogger.logLoadedServices(log, OutboundRewriteProducer.class, this.outbound);
+        ServiceLogger.logLoadedServices(log, ContextListener.class,
+                Iterators.asList((Iterable) ServiceLoader.load(ContextListener.class)));
+        ServiceLogger.logLoadedServices(log, RequestListener.class,
+                Iterators.asList((Iterable) ServiceLoader.load(RequestListener.class)));
+        ServiceLogger.logLoadedServices(log, RequestParameterProvider.class,
+                Iterators.asList((Iterable) ServiceLoader.load(RequestParameterProvider.class)));
+        ServiceLogger.logLoadedServices(log, ExpressionLanguageProvider.class,
+                Iterators.asList((Iterable) ServiceLoader.load(ExpressionLanguageProvider.class)));
+        ServiceLogger.logLoadedServices(log, InvocationResultHandler.class,
+                Iterators.asList((Iterable) ServiceLoader.load(InvocationResultHandler.class)));
+        ServiceLogger.logLoadedServices(log, ServiceEnricher.class,
+                Iterators.asList((Iterable) ServiceLoader.load(ServiceEnricher.class)));
+        ServiceLogger.logLoadedServices(log, ConfigurationCacheProvider.class,
+                Iterators.asList((Iterable) ServiceLoader.load(ConfigurationCacheProvider.class)));
+        List<ConfigurationProvider<?>> configurations = Iterators.asList(
+                (Iterable) ServiceLoader.load(ConfigurationProvider.class));
+        ServiceLogger.logLoadedServices(log, ConfigurationProvider.class, configurations);
+        for (RewriteProvider<ServletContext, Rewrite> provider : this.providers) {
+            if (provider instanceof ServletRewriteProvider)
+                ((ServletRewriteProvider) provider).init(this.servletContext);
+        }
+        if ((configurations == null || configurations.isEmpty()) &&
+                log.isWarnEnabled())
+            log.warn(
+                    "No ConfigurationProviders were registered: Rewrite will not be enabled on this application. Did you forget to create a '/META-INF/services/"
+                            + ConfigurationProvider.class
+
+                                    .getName()
+                            + " file containing the fully qualified name of your provider implementation?");
+        if (log.isInfoEnabled())
+            log.info(Version.getFullName() + " initialized.");
+    }
+
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+        if (!preFilter(request, response, chain))
+            return;
+        if (request.getAttribute("noload") != null)
+            chain.doFilter(request, response);
+        InboundServletRewrite<ServletRequest, ServletResponse> event = createRewriteEvent(request, response);
+        if (event == null) {
+            if (log.isWarnEnabled())
+                log.warn("No Rewrite event was produced - RewriteFilter disabled on this request.");
+            chain.doFilter(request, response);
+        } else {
+            incrementFilterCount(request);
+            if (request.getAttribute("_com.ocpsoft.rewrite.RequestContext") == null) {
+                HttpRewriteContextImpl httpRewriteContextImpl = new HttpRewriteContextImpl(this.inbound, this.outbound,
+                        this.listeners, this.resultHandlers, this.wrappers, this.providers);
+                request.setAttribute("_com.ocpsoft.rewrite.RequestContext", httpRewriteContextImpl);
+            }
+            for (RewriteLifecycleListener<Rewrite> listener : this.listeners) {
+                if (listener.handles(event))
+                    listener.beforeInboundLifecycle((Rewrite) event);
+            }
+            for (RequestCycleWrapper<ServletRequest, ServletResponse> wrapper : this.wrappers) {
+                if (wrapper.handles(event)) {
+                    event.setRequest(wrapper.wrapRequest(event.getRequest(), event.getResponse(), this.servletContext));
+                    event.setResponse(
+                            wrapper.wrapResponse(event.getRequest(), event.getResponse(), this.servletContext));
+                }
+            }
             try {
-              System.out.println("2do chain.doFilter(req, response);");
-            } catch (Exception e) {
-              e.printStackTrace();
-            } 
-          } 
-        } 
-        boolean isLocalhost = request.getRequestURL().toString().startsWith("http://localhost");
-        if (isLocalhost && session != null && session.getAttribute("_USER") == null)
-          try {
-            System.out.println("CREAR USUARIO PARA LOCALHOST");
-            ((TestFacadeLocal)((AbstractFacadeLocal)(new InitialContext()).lookup("java:module/PeopleFacadeLocalImpl")).getModule(TestFacadeLocal.class)).init(session);
-          } catch (Exception e) {
+                rewrite(event);
+            } catch (ServletException e) {
+                if (getFilterCount(request) == 1)
+                    AbstractRewrite.logEvaluatedRules((Rewrite) event, Logger.Level.ERROR);
+                decrementFilterCount(request);
+                throw e;
+            } catch (RuntimeException e) {
+                if (getFilterCount(request) == 1)
+                    AbstractRewrite.logEvaluatedRules((Rewrite) event, Logger.Level.ERROR);
+                decrementFilterCount(request);
+                throw e;
+            }
+            if (!event.getFlow().is((Flow) BaseRewrite.ServletRewriteFlow.ABORT_REQUEST)) {
+                if (log.isDebugEnabled())
+                    log.debug("RewriteFilter passing control of request to underlying application.");
+                if (response.isCommitted() && log.isWarnEnabled())
+                    log.warn(
+                            "Response has already been committed, and further write operations are not permitted. This may result in an IllegalStateException being triggered by the underlying application. To avoid this situation, consider adding a Rule `.when(Direction.isInbound().and(Response.isCommitted())).perform(Lifecycle.abort())`, or figure out where the response is being incorrectly committed and correct the bug in the offending code.");
+                chain.doFilter(event.getRequest(), event.getResponse());
+                if (log.isDebugEnabled())
+                    log.debug("Control of request returned to RewriteFilter.");
+            }
+            for (RewriteLifecycleListener<Rewrite> listener : this.listeners) {
+                if (listener.handles(event))
+                    listener.afterInboundLifecycle((Rewrite) event);
+            }
+            if (getFilterCount(request) == 1)
+                AbstractRewrite.logEvaluatedRules((Rewrite) event, Logger.Level.DEBUG);
+            decrementFilterCount(request);
+        }
+    }
+
+    private Client client = ClientBuilder.newClient();
+
+    public boolean preFilter(ServletRequest req, ServletResponse res, FilterChain chain)
+            throws IOException, ServletException {
+        try {
+            HttpServletRequest request = (HttpServletRequest) req;
+            HttpServletResponse response = (HttpServletResponse) res;
+            if (request != null) {
+                HttpSession session = request.getSession(false);
+                String requestURI = request.getRequestURI();
+                System.out.println("requestURI="+requestURI);
+                int p = requestURI.indexOf(";jsessionid");
+                if (p > -1)
+                    requestURI = requestURI.substring(0, p);
+                String contextPath = request.getContextPath();
+                if (X.CONTEXT_PATH == null)
+                    X.CONTEXT_PATH = contextPath;
+                request.setAttribute("contextPath", contextPath);
+                if (requestURI.endsWith("/"))
+                    requestURI = requestURI.substring(0, requestURI.length() - 1);
+                if (requestURI.startsWith("/"))
+                    requestURI = requestURI.substring(1);
+                String[] q = requestURI.split("/");
+                q[q.length - 1] = q[q.length - 1].replaceAll(".xhtml", "");
+                if (request.getAttribute("#q") == null) {
+                    request.setAttribute("#q", q);
+                    request.setAttribute("#requestURI", requestURI);
+                }
+                String URI = requestURI.toLowerCase();
+                if (URI.contains("javax.faces.resource") || URI
+                        .endsWith(".jpg")
+                        || URI
+                                .endsWith(".js")
+                        || URI
+                                .endsWith(".ttf")
+                        || URI
+                                .endsWith(".properties")
+                        || URI
+                                .endsWith(".png")
+                        || URI
+                                .endsWith(".gif")
+                        || URI
+                                .endsWith(".png")
+                        || URI
+                                .endsWith(".css")
+                        || URI
+                                .endsWith(".png")
+                        || URI
+                                .endsWith(".svg")
+                        || URI
+                                .endsWith(".ico")) {
+                    req.setAttribute(X.NO_LOAD, Boolean.valueOf(true));
+                    String destinyRequest = req.getParameter("destiny");
+                    if (destinyRequest != null)
+                        request.getSession().setAttribute("_DESTINY", destinyRequest);
+                    chain.doFilter(req, (ServletResponse) response);
+                    return false;
+                }
+                if (session == null) {
+                    session = request.getSession(true);
+                    System.out.println(
+                            "FILTER CREA SESSION " + session.getId() + " - " + URI + " res=" + response.getStatus());
+                }
+                X.setSession(session);
+                X.setRequest(request);
+                request.setAttribute("_MSG", X.getSession().getAttribute("_MSG"));
+                X.getSession().removeAttribute("_MSG");
+                X.log("Q=>" + X.gson.toJson(q));
+                String logout = req.getParameter("action");
+                if ("logout".equals(logout)) {
+                    ((UserFacadeLocal) (new InitialContext()).lookup("java:module/UserFacade")).logout();
+                    response.sendRedirect("/" + requestURI);
+                    return false;
+                }
+                if (req.getAttribute(X.NO_LOAD) != null) {
+                    chain.doFilter(req, (ServletResponse) response);
+                    return false;
+                }
+                if (request.getAttribute("URL_ENTER") == null && req.getAttribute(X.NO_LOAD) == null)
+                    request.setAttribute("URL_ENTER", requestURI);
+                if (!X.installed) {
+                    SystemFacadeLocal systemFacade = lookupSystemFacadeLocal();
+                    Map m = systemFacade.getConfig("SYSTEM");
+                    if (m == null ||
+                            !m.containsKey("installed") ||
+                            !(X.installed = systemFacade.hasAdmin())) {
+                        if (!requestURI.endsWith("faces/Install.xhtml")) {
+                            response.sendRedirect("/faces/Install.xhtml");
+                            return false;
+                        }
+                        try {
+                            System.out.println("2do chain.doFilter(req, response);");
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+                boolean isLocalhost = request.getRequestURL().toString().startsWith("http://localhost");
+                if (isLocalhost && session != null && session.getAttribute("_USER") == null)
+                    try {
+                        System.out.println("CREAR USUARIO PARA LOCALHOST");
+                        ((TestFacadeLocal) ((AbstractFacadeLocal) (new InitialContext())
+                                .lookup("java:module/PeopleFacadeLocalImpl")).getModule(TestFacadeLocal.class))
+                                .init(session);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        X.log(e);
+                    }
+                if (requestURI.contains("/api/") || "api"
+                        .equals(q[0]) || (q.length > 1 && "api".equals(q[1]))) {
+                    response.addHeader("Access-Control-Allow-Origin", "*");
+                    response.addHeader("Access-Control-Allow-Methods", "GET, OPTIONS, HEAD, PUT, POST");
+                    chain.doFilter(req, (ServletResponse) response);
+                    return false;
+                }
+                if (request.getAttribute("TEMPLATE") == null)
+                    if (request.getParameter("modal") != null) {
+                        request.setAttribute(X.TEMPLATE, "/modal.xhtml");
+                    } else {
+                        request.setAttribute(X.TEMPLATE, (q.length > 0 && "admin"
+                                .equals(q[0])) ? DEFAULT_TEMPLATE : "/nodeTemplate.xhtml");
+                    }
+                if (isLocalhost || requestURI
+                        .startsWith("login")
+                        || requestURI
+                                .endsWith("/register")
+                        || requestURI
+                                .startsWith("user/reset/")
+                        || requestURI
+                                .endsWith("/password")
+                        || session
+                                .getAttribute("_USER") != null
+                        ||
+                        !requestURI.startsWith("admin")) {
+                    X.DEBUG = true;
+                    String destinyRequest = req.getParameter("destiny");
+                    User user = (User) session.getAttribute("_USER");
+                    if (!isLocalhost && user != null && !contextPath.equals("")) {
+                        String mainSessionId = (String) X.getSession().getAttribute(MAIN_SESSION_ID);
+                        System.out.println("SESS=" + X.getSession().getId()
+                                + " Este es el primer intento para validar el session mainSessionId=" + mainSessionId);
+                        int uid = (mainSessionId != null)
+                                ? ((Integer) this.client.target("http://localhost:" + X.getRequest().getLocalPort()
+                                        + "/api/session/logged/" + mainSessionId).request().get(Integer.class))
+                                        .intValue()
+                                : 0;
+                        if (uid <= 0) {
+                            ((UserFacadeLocal) (new InitialContext()).lookup("java:module/UserFacade")).logout();
+                            response.sendRedirect("/" + requestURI);
+                            return false;
+                        }
+                    }
+                    if (!XUtil.isEmpty(destinyRequest) && requestURI.equals("login")) {
+                        System.out.println("u=" + user);
+                        if (user != null && user.getUid().intValue() > 0) {
+                            String token = X.toText(X.getClientIpAddr(X.getRequest())).replace(".", "") + "."
+                                    + Character.MIN_VALUE + "." + X.getRequest().getSession().getId();
+                            System.out.println("Redirect /" + destinyRequest + "?access_token=" + token);
+                            response.sendRedirect("/" + destinyRequest + "?access_token=" + token);
+                            return true;
+                        }
+                    }
+                    if (destinyRequest != null)
+                        session.setAttribute("_DESTINY", destinyRequest);
+                    if (req.getAttribute("noload") != null) {
+                        System.out.println("no load");
+                        return true;
+                    }
+                    if (requestURI.startsWith("admin") || requestURI.startsWith("faces/")) {
+                        String access_token = req.getParameter("access_token");
+                        if (access_token != null) {
+                            Object modal = req.getParameter("modal");
+                            if (modal != null)
+                                requestURI = requestURI + "?modal";
+                            if (session.getAttribute("_USER") == null) {
+                                Object uid = req.getParameter("uid");
+                                if (uid == null) {
+                                    ((UserFacadeLocal) (new InitialContext()).lookup("java:module/UserFacade"))
+                                            .initSession(Integer.valueOf(XUtil.intValue(access_token)));
+                                    response.sendRedirect("/" + requestURI);
+                                    return false;
+                                }
+                            }
+                            response.sendRedirect("/" + requestURI);
+                            return false;
+                        }
+                        if (req.getAttribute("-checkedAccess") == null) {
+                            Object o = null;
+                            try {
+                                o = ((MenuFacadeLocal) (new InitialContext()).lookup("java:module/MenuFacade"))
+                                        .accessMenu(q);
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                            if (o instanceof Exception) {
+                                ((Exception) o).printStackTrace();
+                                request.setAttribute("MSG", ((Exception) o).getMessage());
+                                req.setAttribute("noload", Boolean.valueOf(true));
+                                request.getRequestDispatcher("/faces/common/Page.xhtml").forward(req, res);
+                            }
+                            req.setAttribute("-checkedAccess", Boolean.valueOf(true));
+                        }
+                    } else if (requestURI.endsWith(".xhtml")) {
+                        req.setAttribute("noload", Boolean.valueOf(true));
+                    } else {
+                        req.setAttribute("-checkedAccess", Boolean.valueOf(true));
+                    }
+                } else if (req.getAttribute("-checkedAccess") == null) {
+                    if ("faces/".equals(requestURI))
+                        requestURI = null;
+                    String access_token = req.getParameter("access_token");
+                    User user = (User) session.getAttribute("_USER");
+                    System.out.println("context-path=" + request.getContextPath());
+                    String mainSessionId = (String) session.getAttribute(MAIN_SESSION_ID);
+                    if (access_token != null && user == null) {
+                        String[] tr = access_token.split("[.]");
+                        String sessionId = tr[2];
+                        System.out.println("Preguntando al main si es valido el id=" + sessionId);
+                        int uid = ((Integer) this.client.target("http://localhost:" + X.getRequest().getLocalPort()
+                                + "/api/session/logged/" + sessionId).request().get(Integer.class)).intValue();
+                        if (uid > -1) {
+                            System.out.println("Es valido se inicia session");
+                            user = ((UserFacadeLocal) (new InitialContext()).lookup("java:module/UserFacade"))
+                                    .initSession(Integer.valueOf(uid));
+                            if (user != null) {
+                                X.getSession().setAttribute(MAIN_SESSION_ID, sessionId);
+                                System.out.println("SESS=" + X.getSession().getId() + " guarda mainSessionId="
+                                        + mainSessionId + " USER INICIADO=" + user + " en contextPath=" + contextPath
+                                        + " Despues se redirige a /" + requestURI);
+                                response.sendRedirect("/" + requestURI);
+                                return false;
+                            }
+                        } else {
+                            System.out.println("fallo valido se inicia session " + sessionId);
+                        }
+                    } else if (user != null) {
+                        mainSessionId = (String) X.getSession().getAttribute(MAIN_SESSION_ID);
+                        int uid = ((Integer) this.client.target("http://localhost:" + X.getRequest().getLocalPort()
+                                + "/api/session/logged/" + mainSessionId).request().get(Integer.class)).intValue();
+                        if (uid <= 0) {
+                            ((UserFacadeLocal) (new InitialContext()).lookup("java:module/UserFacade")).logout();
+                            response.sendRedirect("/" + requestURI);
+                            return false;
+                        }
+                    }
+                    request.getSession().setAttribute("_DESTINY", requestURI);
+                    response.sendRedirect("/login?destiny=" + requestURI);
+                    return false;
+                }
+            }
+        } catch (Exception e) {
             e.printStackTrace();
-            X.log(e);
-          }  
-        if (requestURI.contains("/api/") || "api"
-          .equals(q[0]) || (q.length > 1 && "api".equals(q[1]))) {
-          response.addHeader("Access-Control-Allow-Origin", "*");
-          response.addHeader("Access-Control-Allow-Methods", "GET, OPTIONS, HEAD, PUT, POST");
-          chain.doFilter(req, (ServletResponse)response);
-          return false;
-        } 
-        if (request.getAttribute("TEMPLATE") == null)
-          if (request.getParameter("modal") != null) {
-            request.setAttribute(X.TEMPLATE, "/modal.xhtml");
-          } else {
-            request.setAttribute(X.TEMPLATE, (q.length > 0 && "admin"
-                .equals(q[0])) ? DEFAULT_TEMPLATE : "/nodeTemplate.xhtml");
-          }  
-        if (isLocalhost || requestURI
-          .startsWith("login") || requestURI
-          .endsWith("/register") || requestURI
-          .startsWith("user/reset/") || requestURI
-          .endsWith("/password") || session
-          .getAttribute("_USER") != null || 
-          !requestURI.startsWith("admin")) {
-          X.DEBUG = true;
-          String destinyRequest = req.getParameter("destiny");
-          User user = (User)session.getAttribute("_USER");
-          if (!isLocalhost && user != null && !contextPath.equals("")) {
-            String mainSessionId = (String)X.getSession().getAttribute(MAIN_SESSION_ID);
-            System.out.println("SESS=" + X.getSession().getId() + " Este es el primer intento para validar el session mainSessionId=" + mainSessionId);
-            int uid = (mainSessionId != null) ? ((Integer)this.client.target("http://localhost:" + X.getRequest().getLocalPort() + "/api/session/logged/" + mainSessionId).request().get(Integer.class)).intValue() : 0;
-            if (uid <= 0) {
-              ((UserFacadeLocal)(new InitialContext()).lookup("java:module/UserFacade")).logout();
-              response.sendRedirect("/" + requestURI);
-              return false;
-            } 
-          } 
-          if (!XUtil.isEmpty(destinyRequest) && requestURI.equals("login")) {
-            System.out.println("u=" + user);
-            if (user != null && user.getUid().intValue() > 0) {
-              String token = X.toText(X.getClientIpAddr(X.getRequest())).replace(".", "") + "." + Character.MIN_VALUE + "." + X.getRequest().getSession().getId();
-              System.out.println("Redirect /" + destinyRequest + "?access_token=" + token);
-              response.sendRedirect("/" + destinyRequest + "?access_token=" + token);
-              return true;
-            } 
-          } 
-          if (destinyRequest != null)
-            session.setAttribute("_DESTINY", destinyRequest); 
-          if (req.getAttribute("noload") != null) {
-            System.out.println("no load");
-            return true;
-          } 
-          if (requestURI.startsWith("admin") || requestURI.startsWith("faces/")) {
-            String access_token = req.getParameter("access_token");
-            if (access_token != null) {
-              Object modal = req.getParameter("modal");
-              if (modal != null)
-                requestURI = requestURI + "?modal"; 
-              if (session.getAttribute("_USER") == null) {
-                Object uid = req.getParameter("uid");
-                if (uid == null) {
-                  ((UserFacadeLocal)(new InitialContext()).lookup("java:module/UserFacade")).initSession(Integer.valueOf(XUtil.intValue(access_token)));
-                  response.sendRedirect("/" + requestURI);
-                  return false;
-                } 
-              } 
-              response.sendRedirect("/" + requestURI);
-              return false;
-            } 
-            if (req.getAttribute("-checkedAccess") == null) {
-              Object o = null;
-              try {
-                o = ((MenuFacadeLocal)(new InitialContext()).lookup("java:module/MenuFacade")).accessMenu(q);
-              } catch (Exception e) {
-                e.printStackTrace();
-              } 
-              if (o instanceof Exception) {
-                ((Exception)o).printStackTrace();
-                request.setAttribute("MSG", ((Exception)o).getMessage());
-                req.setAttribute("noload", Boolean.valueOf(true));
-                request.getRequestDispatcher("/faces/common/Page.xhtml").forward(req, res);
-              } 
-              req.setAttribute("-checkedAccess", Boolean.valueOf(true));
-            } 
-          } else if (requestURI.endsWith(".xhtml")) {
-            req.setAttribute("noload", Boolean.valueOf(true));
-          } else {
-            req.setAttribute("-checkedAccess", Boolean.valueOf(true));
-          } 
-        } else if (req.getAttribute("-checkedAccess") == null) {
-          if ("faces/".equals(requestURI))
-            requestURI = null; 
-          String access_token = req.getParameter("access_token");
-          User user = (User)session.getAttribute("_USER");
-          System.out.println("context-path=" + request.getContextPath());
-          String mainSessionId = (String)session.getAttribute(MAIN_SESSION_ID);
-          if (access_token != null && user == null) {
-            String[] tr = access_token.split("[.]");
-            String sessionId = tr[2];
-            System.out.println("Preguntando al main si es valido el id=" + sessionId);
-            int uid = ((Integer)this.client.target("http://localhost:" + X.getRequest().getLocalPort() + "/api/session/logged/" + sessionId).request().get(Integer.class)).intValue();
-            if (uid > -1) {
-              System.out.println("Es valido se inicia session");
-              user = ((UserFacadeLocal)(new InitialContext()).lookup("java:module/UserFacade")).initSession(Integer.valueOf(uid));
-              if (user != null) {
-                X.getSession().setAttribute(MAIN_SESSION_ID, sessionId);
-                System.out.println("SESS=" + X.getSession().getId() + " guarda mainSessionId=" + mainSessionId + " USER INICIADO=" + user + " en contextPath=" + contextPath + " Despues se redirige a /" + requestURI);
-                response.sendRedirect("/" + requestURI);
-                return false;
-              } 
-            } else {
-              System.out.println("fallo valido se inicia session " + sessionId);
-            } 
-          } else if (user != null) {
-            mainSessionId = (String)X.getSession().getAttribute(MAIN_SESSION_ID);
-            int uid = ((Integer)this.client.target("http://localhost:" + X.getRequest().getLocalPort() + "/api/session/logged/" + mainSessionId).request().get(Integer.class)).intValue();
-            if (uid <= 0) {
-              ((UserFacadeLocal)(new InitialContext()).lookup("java:module/UserFacade")).logout();
-              response.sendRedirect("/" + requestURI);
-              return false;
-            } 
-          } 
-          request.getSession().setAttribute("_DESTINY", requestURI);
-          response.sendRedirect("/login?destiny=" + requestURI);
-          return false;
-        } 
-      } 
-    } catch (Exception e) {
-      e.printStackTrace();
-      return false;
-    } 
-    return true;
-  }
-  
-  private Map validateToken(String token) throws Exception {
-    String POST_PARAMS = "{\"token\":\"" + token + "\"}";
-    System.out.println(POST_PARAMS);
-    URL obj = new URL("http://web.regionancash.gob.pe/auth/api/tblusuario/verificartoken");
-    HttpURLConnection postConnection = (HttpURLConnection)obj.openConnection();
-    postConnection.setRequestMethod("POST");
-    postConnection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-    postConnection.setDoOutput(true);
-    OutputStream os = postConnection.getOutputStream();
-    os.write(POST_PARAMS.getBytes());
-    os.flush();
-    os.close();
-    int responseCode = postConnection.getResponseCode();
-    BufferedReader in = new BufferedReader(new InputStreamReader(postConnection.getInputStream(), Charset.forName("UTF-8")));
-    StringBuffer response = new StringBuffer();
-    String inputLine;
-    while ((inputLine = in.readLine()) != null)
-      response.append(inputLine); 
-    in.close();
-    System.out.println(response);
-    HashMap<Object, Object> m = new HashMap<>();
-    JsonParser parser = Json.createParser(new ByteArrayInputStream(response.toString().getBytes()));
-    String keyName = "";
-    while (parser.hasNext()) {
-      JsonParser.Event e = parser.next();
-      switch (e) {
-        case VALUE_NUMBER:
-          m.put(keyName, Integer.valueOf(parser.getInt()));
-        case VALUE_STRING:
-          m.put(keyName, parser.getString());
-        case VALUE_TRUE:
-          m.put(keyName, Boolean.valueOf(true));
-        case VALUE_FALSE:
-          m.put(keyName, Boolean.valueOf(false));
-        case KEY_NAME:
-          keyName = parser.getString();
-          switch (keyName) {
-            case "valido":
-              keyName = "valid";
-          } 
-      } 
-    } 
-    return m;
-  }
-  
-  public InboundServletRewrite<ServletRequest, ServletResponse> createRewriteEvent(ServletRequest request, ServletResponse response) {
-    for (InboundRewriteProducer<ServletRequest, ServletResponse> producer : this.inbound) {
-      InboundServletRewrite<ServletRequest, ServletResponse> event = producer.createInboundRewrite(request, response, this.servletContext);
-      if (event != null)
-        return event; 
-    } 
-    return null;
-  }
-  
-  private void rewrite(InboundServletRewrite<ServletRequest, ServletResponse> event) throws ServletException, IOException {
-    int listenerCount = this.listeners.size();
-    for (int i = 0; i < listenerCount; i++) {
-      RewriteLifecycleListener<Rewrite> listener = this.listeners.get(i);
-      if (listener.handles(event))
-        listener.beforeInboundRewrite((Rewrite)event); 
-    } 
-    int providerCount = this.providers.size();
-    int j;
-    for (j = 0; j < providerCount; j++) {
-      RewriteProvider<ServletContext, Rewrite> provider = this.providers.get(j);
-      if (provider.handles(event)) {
-        provider.rewrite((Rewrite)event);
-        if (event.getFlow().is((Flow)BaseRewrite.ServletRewriteFlow.HANDLED)) {
-          if (log.isDebugEnabled())
-            log.debug("Event flow marked as HANDLED. No further processing will occur."); 
-          break;
-        } 
-      } 
-    } 
-    for (j = 0; j < listenerCount; j++) {
-      RewriteLifecycleListener<Rewrite> listener = this.listeners.get(j);
-      if (listener.handles(event))
-        listener.afterInboundRewrite((Rewrite)event); 
-    } 
-    int handlerCount = this.resultHandlers.size();
-    for (int k = 0; k < handlerCount; k++) {
-      if (((RewriteResultHandler)this.resultHandlers.get(k)).handles(event))
-        ((RewriteResultHandler)this.resultHandlers.get(k)).handleResult((Rewrite)event); 
-    } 
-  }
-  
-  public void destroy() {
-    log.info("RewriteFilter shutting down...");
-    for (RewriteProvider<ServletContext, Rewrite> provider : this.providers) {
-      if (provider instanceof ServletRewriteProvider)
-        ((ServletRewriteProvider)provider).shutdown(this.servletContext); 
-    } 
-    log.info("RewriteFilter deactivated.");
-  }
-  
-  private int getFilterCount(ServletRequest request) {
-    return ((Integer)request.getAttribute(FILTER_COUNT_KEY)).intValue();
-  }
-  
-private void decrementFilterCount(ServletRequest request) {
-    Integer count = (Integer) request.getAttribute(FILTER_COUNT_KEY);
-
-    if (count != null) {
-        count = Integer.valueOf(count.intValue() - 1);
+            return false;
+        }
+        return true;
     }
 
-    request.setAttribute(FILTER_COUNT_KEY, count);
-}
-  
-private void incrementFilterCount(ServletRequest request) {
-    Integer count = (Integer) request.getAttribute(FILTER_COUNT_KEY);
-
-    if (count == null) {
-        count = Integer.valueOf(1);
-    } else {
-        count = Integer.valueOf(count.intValue() + 1);
+    private Map validateToken(String token) throws Exception {
+        String POST_PARAMS = "{\"token\":\"" + token + "\"}";
+        System.out.println(POST_PARAMS);
+        URL obj = new URL("http://web.regionancash.gob.pe/auth/api/tblusuario/verificartoken");
+        HttpURLConnection postConnection = (HttpURLConnection) obj.openConnection();
+        postConnection.setRequestMethod("POST");
+        postConnection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+        postConnection.setDoOutput(true);
+        OutputStream os = postConnection.getOutputStream();
+        os.write(POST_PARAMS.getBytes());
+        os.flush();
+        os.close();
+        int responseCode = postConnection.getResponseCode();
+        BufferedReader in = new BufferedReader(
+                new InputStreamReader(postConnection.getInputStream(), Charset.forName("UTF-8")));
+        StringBuffer response = new StringBuffer();
+        String inputLine;
+        while ((inputLine = in.readLine()) != null)
+            response.append(inputLine);
+        in.close();
+        System.out.println(response);
+        HashMap<Object, Object> m = new HashMap<>();
+        JsonParser parser = Json.createParser(new ByteArrayInputStream(response.toString().getBytes()));
+        String keyName = "";
+        while (parser.hasNext()) {
+            JsonParser.Event e = parser.next();
+            switch (e) {
+                case VALUE_NUMBER:
+                    m.put(keyName, Integer.valueOf(parser.getInt()));
+                case VALUE_STRING:
+                    m.put(keyName, parser.getString());
+                case VALUE_TRUE:
+                    m.put(keyName, Boolean.valueOf(true));
+                case VALUE_FALSE:
+                    m.put(keyName, Boolean.valueOf(false));
+                case KEY_NAME:
+                    keyName = parser.getString();
+                    switch (keyName) {
+                        case "valido":
+                            keyName = "valid";
+                    }
+            }
+        }
+        return m;
     }
 
-    request.setAttribute(FILTER_COUNT_KEY, count);
-}
-  
-  private SystemFacadeLocal lookupSystemFacadeLocal() {
-    try {
-      return (SystemFacadeLocal)(new InitialContext()).lookup("java:module/SystemFacade!org.isobit.app.ejb.SystemFacadeLocal");
-    } catch (NamingException ne) {
-      throw new RuntimeException(ne);
-    } 
-  }
+    public InboundServletRewrite<ServletRequest, ServletResponse> createRewriteEvent(ServletRequest request,
+            ServletResponse response) {
+        for (InboundRewriteProducer<ServletRequest, ServletResponse> producer : this.inbound) {
+            InboundServletRewrite<ServletRequest, ServletResponse> event = producer.createInboundRewrite(request,
+                    response, this.servletContext);
+            if (event != null)
+                return event;
+        }
+        return null;
+    }
+
+    private void rewrite(InboundServletRewrite<ServletRequest, ServletResponse> event)
+            throws ServletException, IOException {
+        int listenerCount = this.listeners.size();
+        for (int i = 0; i < listenerCount; i++) {
+            RewriteLifecycleListener<Rewrite> listener = this.listeners.get(i);
+            if (listener.handles(event))
+                listener.beforeInboundRewrite((Rewrite) event);
+        }
+        int providerCount = this.providers.size();
+        int j;
+        for (j = 0; j < providerCount; j++) {
+            RewriteProvider<ServletContext, Rewrite> provider = this.providers.get(j);
+            if (provider.handles(event)) {
+                provider.rewrite((Rewrite) event);
+                if (event.getFlow().is((Flow) BaseRewrite.ServletRewriteFlow.HANDLED)) {
+                    if (log.isDebugEnabled())
+                        log.debug("Event flow marked as HANDLED. No further processing will occur.");
+                    break;
+                }
+            }
+        }
+        for (j = 0; j < listenerCount; j++) {
+            RewriteLifecycleListener<Rewrite> listener = this.listeners.get(j);
+            if (listener.handles(event))
+                listener.afterInboundRewrite((Rewrite) event);
+        }
+        int handlerCount = this.resultHandlers.size();
+        for (int k = 0; k < handlerCount; k++) {
+            if (((RewriteResultHandler) this.resultHandlers.get(k)).handles(event))
+                ((RewriteResultHandler) this.resultHandlers.get(k)).handleResult((Rewrite) event);
+        }
+    }
+
+    public void destroy() {
+        log.info("RewriteFilter shutting down...");
+        for (RewriteProvider<ServletContext, Rewrite> provider : this.providers) {
+            if (provider instanceof ServletRewriteProvider)
+                ((ServletRewriteProvider) provider).shutdown(this.servletContext);
+        }
+        log.info("RewriteFilter deactivated.");
+    }
+
+    private int getFilterCount(ServletRequest request) {
+        return ((Integer) request.getAttribute(FILTER_COUNT_KEY)).intValue();
+    }
+
+    private void decrementFilterCount(ServletRequest request) {
+        Integer count = (Integer) request.getAttribute(FILTER_COUNT_KEY);
+
+        if (count != null) {
+            count = Integer.valueOf(count.intValue() - 1);
+        }
+
+        request.setAttribute(FILTER_COUNT_KEY, count);
+    }
+
+    private void incrementFilterCount(ServletRequest request) {
+        Integer count = (Integer) request.getAttribute(FILTER_COUNT_KEY);
+
+        if (count == null) {
+            count = Integer.valueOf(1);
+        } else {
+            count = Integer.valueOf(count.intValue() + 1);
+        }
+
+        request.setAttribute(FILTER_COUNT_KEY, count);
+    }
+
+    private SystemFacadeLocal lookupSystemFacadeLocal() {
+        try {
+            return (SystemFacadeLocal) (new InitialContext())
+                    .lookup("java:module/SystemFacade!org.isobit.app.ejb.SystemFacadeLocal");
+        } catch (NamingException ne) {
+            throw new RuntimeException(ne);
+        }
+    }
 }
