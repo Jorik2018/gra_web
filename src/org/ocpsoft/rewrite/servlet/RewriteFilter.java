@@ -374,11 +374,7 @@ public class RewriteFilter implements Filter {
                 }
 
 
-                                        System.out.println(
-    traceId
-    + " SESSION CHECK id=" + session.getId()
-    + " user=" + session.getAttribute("_USER")+". destinyRequest="+destinyRequest
-);
+
                 if (user != null
                         || jwtToken != null
                         || requestURI.startsWith("login")
@@ -389,7 +385,11 @@ public class RewriteFilter implements Filter {
                     {
                         X.DEBUG = true;
                         String destinyRequest = req.getParameter("destiny");
-
+                                        System.out.println(
+    traceId
+    + " SESSION CHECK id=" + session.getId()
+    + " user=" + session.getAttribute("_USER")+". destinyRequest="+destinyRequest
+);
                         if (user != null && !contextPath.equals("")) {// verificar master session valida (mejorar usando
                                                                       // api/auth)
                             String mainSessionId = (String) session.getAttribute(MASTER_SESSION_ID);
