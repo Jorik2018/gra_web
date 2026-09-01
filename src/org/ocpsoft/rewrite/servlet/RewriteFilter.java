@@ -373,6 +373,12 @@ public class RewriteFilter implements Filter {
                     }
                 }
 
+
+                                        System.out.println(
+    traceId
+    + " SESSION CHECK id=" + session.getId()
+    + " user=" + session.getAttribute("_USER")+". destinyRequest="+destinyRequest
+);
                 if (user != null
                         || jwtToken != null
                         || requestURI.startsWith("login")
@@ -419,11 +425,7 @@ public class RewriteFilter implements Filter {
                             }
                             return false;
                         }
-                        System.out.println(
-    traceId
-    + " SESSION CHECK id=" + session.getId()
-    + " user=" + session.getAttribute("_USER")
-);
+
                         if (requestURI.equals("login")
                                 && redirectToSlave(
                                         request,
