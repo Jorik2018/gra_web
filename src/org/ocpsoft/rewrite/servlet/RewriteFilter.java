@@ -242,7 +242,7 @@ public class RewriteFilter implements Filter {
 
         try {
             response = client
-                    .target("http://localhost:5055/api/auth/info")
+                    .target("http://localhost:5055/info")//api/auth
                     .request("application/json")
                     .header("Authorization", "Bearer " + token)
                     .get();
