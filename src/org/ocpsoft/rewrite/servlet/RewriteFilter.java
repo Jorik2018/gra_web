@@ -538,27 +538,25 @@ public class RewriteFilter implements Filter {
 
         if (XUtil.isEmpty(destinyRequest)
                 || user == null
+                || user.getUid() == null
                 || user.getUid().intValue() <= 0) {
             return false;
         }
-
         String masterSessionId = request.getSession().getId();
-
         String ip = X.toText(
                 X.getClientIpAddr(request)).replace(".", "");
-
-        // Mantener formato legacy: IP.algo.SESSION_ID
         String accessToken = ip + ".0." + masterSessionId;
-
-        System.out.println(
-                "MASTER -> SLAVE"
-                        + " destiny=" + destinyRequest
-                        + " accessToken=" + accessToken);
-
+        Cookie cookie = new Cookie(
+                "MASTER_SESSION_ID",
+                masterSessionId);
+        cookie.setPath("/");
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true);
+        cookie.setMaxAge(60);
+        response.addCookie(cookie);
         response.sendRedirect(
                 "/" + destinyRequest
                         + "?access_token=" + accessToken);
-
         return true;
     }
 
