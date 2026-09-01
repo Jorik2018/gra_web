@@ -24,6 +24,7 @@ import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
+import javax.ws.rs.core.Response;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
@@ -237,6 +238,11 @@ public class RewriteFilter implements Filter {
     }
 
     private Integer getUidFromJwt(String token) {
+
+        /**        Response response = null;
+        ^
+  symbol:   class Response
+  location: class RewriteFilter */
         Response response = null;
 
         try {
