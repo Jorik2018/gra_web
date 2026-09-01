@@ -239,10 +239,12 @@ public class RewriteFilter implements Filter {
 
     private Integer getUidFromJwt(String token) {
 
-        /**        Response response = null;
-        ^
-  symbol:   class Response
-  location: class RewriteFilter */
+        /**
+         * Response response = null;
+         * ^
+         * symbol: class Response
+         * location: class RewriteFilter
+         */
         Response response = null;
 
         try {
@@ -283,7 +285,7 @@ public class RewriteFilter implements Filter {
                 HttpSession session = request.getSession(false);
                 String requestURI = request.getRequestURI();
                 int traceId = (int) (Math.random() * 900000) + 100000;
-                
+
                 int p = requestURI.indexOf(";jsessionid");
                 if (p > -1)
                     requestURI = requestURI.substring(0, p);
@@ -311,23 +313,24 @@ public class RewriteFilter implements Filter {
                     chain.doFilter(request, (ServletResponse) response);
                     return false;
                 }
-                System.out.println(traceId+" 2 token="+jwtToken);
-                
+                System.out.println(traceId + " 2 token=" + jwtToken);
+
                 if (session == null) {
                     session = request.getSession(true);
                     System.out.println(
                             "FILTER CREA SESSION " + session.getId() + " - " + URI + " res=" + response.getStatus());
                 }
-                System.out.println(traceId+" 4 "+requestURI+"  Q=>" + X.gson.toJson(q));
+                System.out.println(traceId + " 4 " + requestURI + "  Q=>" + X.gson.toJson(q));
                 X.setSession(session);
 
                 X.setRequest(request);
                 request.setAttribute("_MSG", session.getAttribute("_MSG"));
                 session.removeAttribute("_MSG");
                 User user = (User) session.getAttribute("_USER");
-System.out.println(traceId+" 6 "+"req.getAttribute(X.NO_LOAD)  =>" + request.getAttribute(X.NO_LOAD));
-                System.out.println(traceId+" 6 "+  user);
-                
+                System.out
+                        .println(traceId + " 6 " + "req.getAttribute(X.NO_LOAD)  =>" + request.getAttribute(X.NO_LOAD));
+                System.out.println(traceId + " 6 " + user);
+
                 String logout = request.getParameter("action");
                 if ("logout".equals(logout)) {
                     ((UserFacadeLocal) (new InitialContext()).lookup("java:module/UserFacade")).logout();
@@ -376,7 +379,7 @@ System.out.println(traceId+" 6 "+"req.getAttribute(X.NO_LOAD)  =>" + request.get
                 }
 
                 if (user != null
-                    ||jwtToken!=null
+                        || jwtToken != null
                         || requestURI.startsWith("login")
                         || requestURI.endsWith("/register")
                         || requestURI.startsWith("user/reset/")
@@ -385,17 +388,18 @@ System.out.println(traceId+" 6 "+"req.getAttribute(X.NO_LOAD)  =>" + request.get
                     {
                         X.DEBUG = true;
                         String destinyRequest = req.getParameter("destiny");
-                        
 
-                        System.out.println(traceId+" 8 USER=" + user + ";destinyRequest=" + destinyRequest + ";hasToken="
-                                + (jwtToken != null));
+                        System.out.println(
+                                traceId + " 8 USER=" + user + ";destinyRequest=" + destinyRequest + ";hasToken="
+                                        + (jwtToken != null));
                         // usado para cerrar session si el master cerro session, master tiene
                         // contextPath=''
                         if (user != null && !contextPath.equals("")) {
                             String mainSessionId = (String) session.getAttribute(MAIN_SESSION_ID);
-                            System.out.println(traceId+" cverifica para cerrar session  session.getId()=" + session.getId()
-                                    + " Este es el primer intento para validar el session mainSessionId="
-                                    + mainSessionId);
+                            System.out.println(
+                                    traceId + " cverifica para cerrar session  session.getId()=" + session.getId()
+                                            + " Este es el primer intento para validar el session mainSessionId="
+                                            + mainSessionId);
                             int uid = (mainSessionId != null)
                                     ? ((Integer) this.client.target("http://localhost:" + X.getRequest().getLocalPort()
                                             + "/api/session/logged/" + mainSessionId).request().get(Integer.class))
@@ -409,10 +413,8 @@ System.out.println(traceId+" 6 "+"req.getAttribute(X.NO_LOAD)  =>" + request.get
                         }
                         // usada por master para responder al esclavo, si no hay usuario pero existe
                         // token se debe inicializar ocn eso
-                        if (requestURI.equals("login")
-                                && user == null
-                                && !XUtil.isEmpty(jwtToken)) {
-                            System.out.println(traceId+" 10 MASTER: iniciando session desde JWT");
+                        if (!XUtil.isEmpty(jwtToken)) {
+                            System.out.println(traceId + " 10 MASTER: iniciando session desde JWT");
                             User loggedUser = initSessionFromJwt(jwtToken);
                             if (loggedUser != null) {
 
@@ -425,7 +427,7 @@ System.out.println(traceId+" 6 "+"req.getAttribute(X.NO_LOAD)  =>" + request.get
                                 }
                                 return false;
                             }
-                            System.out.println("MASTER LOGIN FAIL");
+                            System.out.println(traceId + " 12 MASTER LOGIN FAIL");
                             // JWT fallo: volver al login SIN token,
                             // pero conservar el destino.
                             if (!XUtil.isEmpty(destinyRequest)) {
@@ -443,6 +445,7 @@ System.out.println(traceId+" 6 "+"req.getAttribute(X.NO_LOAD)  =>" + request.get
                             System.out.println("no load");
                             return true;
                         }
+
                         // los esclavos empiezan con ejemplo:/admin/warrant/*
                         if (requestURI.startsWith("admin") || requestURI.startsWith("faces/")) {
                             String access_token = req.getParameter("access_token");
