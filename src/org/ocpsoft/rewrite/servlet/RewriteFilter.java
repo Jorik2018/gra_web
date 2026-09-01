@@ -326,7 +326,7 @@ public class RewriteFilter implements Filter {
                 session.removeAttribute("_MSG");
                 User user = (User) session.getAttribute("_USER");
 System.out.println("req.getAttribute(X.NO_LOAD)  =>" + request.getAttribute(X.NO_LOAD));
-                System.out.println(traceId+" 6 "+ + user);
+                System.out.println(traceId+" 6 "+  user);
                 
                 String logout = request.getParameter("action");
                 if ("logout".equals(logout)) {
