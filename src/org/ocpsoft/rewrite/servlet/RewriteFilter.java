@@ -284,7 +284,7 @@ public class RewriteFilter implements Filter {
             if (request != null) {
                 HttpSession session = request.getSession(false);
                 String requestURI = request.getRequestURI();
-                String traceId = (int) (Math.random() * 900000) + 100000;
+                int traceId = (int) (Math.random() * 900000) + 100000;
 
                 int p = requestURI.indexOf(";jsessionid");
                 if (p > -1)
