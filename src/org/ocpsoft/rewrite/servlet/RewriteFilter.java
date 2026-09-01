@@ -302,11 +302,11 @@ public class RewriteFilter implements Filter {
                 }
                 String URI = requestURI.toLowerCase();
                 if (isStaticResource(URI)) {
-                    req.setAttribute(X.NO_LOAD, Boolean.valueOf(true));
-                    String destinyRequest = req.getParameter("destiny");
+                    request.setAttribute(X.NO_LOAD, Boolean.valueOf(true));
+                    String destinyRequest = request.getParameter("destiny");
                     if (destinyRequest != null)
                         session.setAttribute("_DESTINY", destinyRequest);
-                    chain.doFilter(req, (ServletResponse) response);
+                    chain.doFilter(request, (ServletResponse) response);
                     return false;
                 }
                 if (session == null) {
@@ -314,20 +314,22 @@ public class RewriteFilter implements Filter {
                     System.out.println(
                             "FILTER CREA SESSION " + session.getId() + " - " + URI + " res=" + response.getStatus());
                 }
-                X.log("Q=>" + X.gson.toJson(q));
+                X.log(requestURI+"  Q=>" + X.gson.toJson(q));
+                X.log("req.getAttribute(X.NO_LOAD)  =>" + request.getAttribute(X.NO_LOAD));
+                X.log("request.getAttribute(TEMPLATE)  =>" + request.getAttribute("TEMPLATE"));
                 X.setSession(session);
                 X.setRequest(request);
                 request.setAttribute("_MSG", session.getAttribute("_MSG"));
                 session.removeAttribute("_MSG");
                 User user = (User) session.getAttribute("_USER");
 
-                String logout = req.getParameter("action");
+                String logout = request.getParameter("action");
                 if ("logout".equals(logout)) {
                     ((UserFacadeLocal) (new InitialContext()).lookup("java:module/UserFacade")).logout();
                     response.sendRedirect("/" + requestURI);
                     return false;
                 }
-                if (req.getAttribute(X.NO_LOAD) != null) {
+                if (request.getAttribute(X.NO_LOAD) != null) {
                     chain.doFilter(req, (ServletResponse) response);
                     return false;
                 }
