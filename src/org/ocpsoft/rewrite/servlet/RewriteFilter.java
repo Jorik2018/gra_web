@@ -303,7 +303,6 @@ public class RewriteFilter implements Filter {
                 }
                 String URI = requestURI.toLowerCase();
                 String jwtToken = req.getParameter("token");
-                System.out.println(traceId+" requestURI=" + requestURI+" token="+jwtToken);
                 if (isStaticResource(URI)) {
                     request.setAttribute(X.NO_LOAD, Boolean.valueOf(true));
                     String destinyRequest = request.getParameter("destiny");
@@ -319,15 +318,16 @@ public class RewriteFilter implements Filter {
                     System.out.println(
                             "FILTER CREA SESSION " + session.getId() + " - " + URI + " res=" + response.getStatus());
                 }
-                X.log(requestURI+"  Q=>" + X.gson.toJson(q));
-                X.log("req.getAttribute(X.NO_LOAD)  =>" + request.getAttribute(X.NO_LOAD));
-                X.log("request.getAttribute(TEMPLATE)  =>" + request.getAttribute("TEMPLATE"));
+                System.out.println(traceId+" 4 "+requestURI+"  Q=>" + X.gson.toJson(q));
                 X.setSession(session);
+
                 X.setRequest(request);
                 request.setAttribute("_MSG", session.getAttribute("_MSG"));
                 session.removeAttribute("_MSG");
                 User user = (User) session.getAttribute("_USER");
-
+System.out.println("req.getAttribute(X.NO_LOAD)  =>" + request.getAttribute(X.NO_LOAD));
+                System.out.println(traceId+" 6 "+ + user);
+                
                 String logout = request.getParameter("action");
                 if ("logout".equals(logout)) {
                     ((UserFacadeLocal) (new InitialContext()).lookup("java:module/UserFacade")).logout();
