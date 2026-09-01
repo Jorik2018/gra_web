@@ -325,7 +325,7 @@ public class RewriteFilter implements Filter {
                 request.setAttribute("_MSG", session.getAttribute("_MSG"));
                 session.removeAttribute("_MSG");
                 User user = (User) session.getAttribute("_USER");
-System.out.println("req.getAttribute(X.NO_LOAD)  =>" + request.getAttribute(X.NO_LOAD));
+System.out.println(traceId+" 6 "+"req.getAttribute(X.NO_LOAD)  =>" + request.getAttribute(X.NO_LOAD));
                 System.out.println(traceId+" 6 "+  user);
                 
                 String logout = request.getParameter("action");
@@ -387,13 +387,13 @@ System.out.println("req.getAttribute(X.NO_LOAD)  =>" + request.getAttribute(X.NO
                         String destinyRequest = req.getParameter("destiny");
                         
 
-                        System.out.println("USER=" + user + ";destinyRequest=" + destinyRequest + ";hasToken="
+                        System.out.println(traceId+" 8 USER=" + user + ";destinyRequest=" + destinyRequest + ";hasToken="
                                 + (jwtToken != null));
                         // usado para cerrar session si el master cerro session, master tiene
                         // contextPath=''
                         if (user != null && !contextPath.equals("")) {
                             String mainSessionId = (String) session.getAttribute(MAIN_SESSION_ID);
-                            System.out.println("session.getId()=" + session.getId()
+                            System.out.println(traceId+" cverifica para cerrar session  session.getId()=" + session.getId()
                                     + " Este es el primer intento para validar el session mainSessionId="
                                     + mainSessionId);
                             int uid = (mainSessionId != null)
@@ -412,7 +412,7 @@ System.out.println("req.getAttribute(X.NO_LOAD)  =>" + request.getAttribute(X.NO
                         if (requestURI.equals("login")
                                 && user == null
                                 && !XUtil.isEmpty(jwtToken)) {
-                            System.out.println("MASTER: iniciando session desde JWT");
+                            System.out.println(traceId+" 10 MASTER: iniciando session desde JWT");
                             User loggedUser = initSessionFromJwt(jwtToken);
                             if (loggedUser != null) {
 
