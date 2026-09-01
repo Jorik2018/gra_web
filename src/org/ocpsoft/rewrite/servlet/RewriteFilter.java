@@ -376,6 +376,7 @@ System.out.println("req.getAttribute(X.NO_LOAD)  =>" + request.getAttribute(X.NO
                 }
 
                 if (user != null
+                    ||jwtToken!=null
                         || requestURI.startsWith("login")
                         || requestURI.endsWith("/register")
                         || requestURI.startsWith("user/reset/")
