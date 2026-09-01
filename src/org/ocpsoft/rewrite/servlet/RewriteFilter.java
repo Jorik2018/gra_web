@@ -238,13 +238,6 @@ public class RewriteFilter implements Filter {
     }
 
     private Integer getUidFromJwt(String token) {
-
-        /**
-         * Response response = null;
-         * ^
-         * symbol: class Response
-         * location: class RewriteFilter
-         */
         Response response = null;
 
         try {
@@ -253,6 +246,7 @@ public class RewriteFilter implements Filter {
                     .request("application/json")
                     .header("Authorization", "Bearer " + token)
                     .get();
+                    System.out.println("Bearer " + token);
 
             if (response.getStatus() != 200) {
                 System.out.println(
