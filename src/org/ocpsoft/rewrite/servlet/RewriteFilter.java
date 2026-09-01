@@ -373,8 +373,6 @@ public class RewriteFilter implements Filter {
                     }
                 }
 
-
-
                 if (user != null
                         || jwtToken != null
                         || requestURI.startsWith("login")
@@ -385,11 +383,11 @@ public class RewriteFilter implements Filter {
                     {
                         X.DEBUG = true;
                         String destinyRequest = req.getParameter("destiny");
-                                        System.out.println(
-    traceId
-    + " SESSION CHECK id=" + session.getId()
-    + " user=" + session.getAttribute("_USER")+". destinyRequest="+destinyRequest
-);
+                        System.out.println(
+                                traceId
+                                        + " SESSION CHECK id=" + session.getId()
+                                        + " user=" + session.getAttribute("_USER") + ". destinyRequest="
+                                        + destinyRequest);
                         if (user != null && !contextPath.equals("")) {// verificar master session valida (mejorar usando
                                                                       // api/auth)
                             String mainSessionId = (String) session.getAttribute(MASTER_SESSION_ID);
@@ -546,27 +544,16 @@ public class RewriteFilter implements Filter {
 
         String masterSessionId = request.getSession().getId();
 
-        String accessToken = X.toText(X.getClientIpAddr(request)).replace(".", "")
-                + "."
-                + Character.MIN_VALUE
-                + "."
-                + masterSessionId;
+        String ip = X.toText(
+                X.getClientIpAddr(request)).replace(".", "");
 
-        Cookie cookie = new Cookie(
-                "MASTER_SESSION_ID",
-                masterSessionId);
-
-        cookie.setPath("/");
-        cookie.setHttpOnly(true);
-        cookie.setSecure(true);
-        cookie.setMaxAge(60);
-
-        response.addCookie(cookie);
+        // Mantener formato legacy: IP.algo.SESSION_ID
+        String accessToken = ip + ".0." + masterSessionId;
 
         System.out.println(
                 "MASTER -> SLAVE"
                         + " destiny=" + destinyRequest
-                        + " sessionId=" + masterSessionId);
+                        + " accessToken=" + accessToken);
 
         response.sendRedirect(
                 "/" + destinyRequest
