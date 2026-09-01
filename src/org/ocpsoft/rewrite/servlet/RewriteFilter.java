@@ -282,7 +282,8 @@ public class RewriteFilter implements Filter {
             if (request != null) {
                 HttpSession session = request.getSession(false);
                 String requestURI = request.getRequestURI();
-                System.out.println("requestURI=" + requestURI);
+                int traceId = (int) (Math.random() * 900000) + 100000;
+                
                 int p = requestURI.indexOf(";jsessionid");
                 if (p > -1)
                     requestURI = requestURI.substring(0, p);
@@ -301,6 +302,8 @@ public class RewriteFilter implements Filter {
                     request.setAttribute("#requestURI", requestURI);
                 }
                 String URI = requestURI.toLowerCase();
+                String jwtToken = req.getParameter("token");
+                System.out.println(traceId+" requestURI=" + requestURI+" token="+jwtToken);
                 if (isStaticResource(URI)) {
                     request.setAttribute(X.NO_LOAD, Boolean.valueOf(true));
                     String destinyRequest = request.getParameter("destiny");
@@ -309,6 +312,8 @@ public class RewriteFilter implements Filter {
                     chain.doFilter(request, (ServletResponse) response);
                     return false;
                 }
+                System.out.println(traceId+" 2 token="+jwtToken);
+                
                 if (session == null) {
                     session = request.getSession(true);
                     System.out.println(
@@ -379,7 +384,7 @@ public class RewriteFilter implements Filter {
                     {
                         X.DEBUG = true;
                         String destinyRequest = req.getParameter("destiny");
-                        String jwtToken = req.getParameter("token");
+                        
 
                         System.out.println("USER=" + user + ";destinyRequest=" + destinyRequest + ";hasToken="
                                 + (jwtToken != null));
