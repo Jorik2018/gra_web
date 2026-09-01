@@ -47,6 +47,7 @@ import org.ocpsoft.rewrite.AbstractRewrite;
 import org.ocpsoft.rewrite.Version;
 import org.ocpsoft.rewrite.config.ConfigurationProvider;
 import org.ocpsoft.rewrite.el.spi.ExpressionLanguageProvider;
+import javax.servlet.http.Cookie;
 import org.ocpsoft.rewrite.event.Flow;
 import org.ocpsoft.rewrite.event.Rewrite;
 import org.ocpsoft.rewrite.servlet.event.BaseRewrite;
@@ -68,7 +69,7 @@ import org.ocpsoft.rewrite.util.ServiceLogger;
 public class RewriteFilter implements Filter {
     private static String DEFAULT_TEMPLATE = "/template.xhtml";
 
-    private static String MAIN_SESSION_ID = "MAIN_TOKEN";
+    private static String MASTER_SESSION_ID = "MAIN_TOKEN";
 
     private static Logger log = Logger.getLogger(RewriteFilter.class);
 
@@ -242,11 +243,11 @@ public class RewriteFilter implements Filter {
 
         try {
             response = client
-                    .target("http://localhost:5055/info")//api/auth
+                    .target("http://localhost:5055/info")// api/auth
                     .request("application/json")
                     .header("Authorization", "Bearer " + token)
                     .get();
-                    System.out.println("Bearer " + token);
+            System.out.println("Bearer " + token);
 
             if (response.getStatus() != 200) {
                 System.out.println(
@@ -382,18 +383,9 @@ public class RewriteFilter implements Filter {
                     {
                         X.DEBUG = true;
                         String destinyRequest = req.getParameter("destiny");
-
-                        System.out.println(
-                                traceId + " 8 USER=" + user + ";destinyRequest=" + destinyRequest + ";hasToken="
-                                        + (jwtToken != null));
-                        // usado para cerrar session si el master cerro session, master tiene
-                        // contextPath=''
-                        if (user != null && !contextPath.equals("")) {
-                            String mainSessionId = (String) session.getAttribute(MAIN_SESSION_ID);
-                            System.out.println(
-                                    traceId + " cverifica para cerrar session  session.getId()=" + session.getId()
-                                            + " Este es el primer intento para validar el session mainSessionId="
-                                            + mainSessionId);
+                        if (user != null && !contextPath.equals("")) {// verificar master session valida (mejorar usando
+                                                                      // api/auth)
+                            String mainSessionId = (String) session.getAttribute(MASTER_SESSION_ID);
                             int uid = (mainSessionId != null)
                                     ? ((Integer) this.client.target("http://localhost:" + X.getRequest().getLocalPort()
                                             + "/api/session/logged/" + mainSessionId).request().get(Integer.class))
@@ -405,13 +397,9 @@ public class RewriteFilter implements Filter {
                                 return false;
                             }
                         }
-                        // usada por master para responder al esclavo, si no hay usuario pero existe
-                        // token se debe inicializar ocn eso
-                        if (!XUtil.isEmpty(jwtToken)) {
-                            System.out.println(traceId + " 10 MASTER: iniciando session desde JWT");
+                        if (!XUtil.isEmpty(jwtToken)) {// login master
                             User loggedUser = initSessionFromJwt(jwtToken);
                             if (loggedUser != null) {
-
                                 System.out.println(
                                         "MASTER LOGIN OK uid=" + loggedUser.getUid());
                                 if (!XUtil.isEmpty(destinyRequest)) {
@@ -421,15 +409,21 @@ public class RewriteFilter implements Filter {
                                 }
                                 return false;
                             }
-                            System.out.println(traceId + " 12 MASTER LOGIN FAIL");
-                            // JWT fallo: volver al login SIN token,
-                            // pero conservar el destino.
+                            // mostrar mensaje de error de login
                             if (!XUtil.isEmpty(destinyRequest)) {
                                 response.sendRedirect(
                                         "/login?destiny=" + destinyRequest);
                             } else {
                                 response.sendRedirect("/login");
                             }
+                            return false;
+                        }
+                        if (requestURI.equals("login")
+                                && redirectToSlave(
+                                        request,
+                                        response,
+                                        destinyRequest,
+                                        user)) {
                             return false;
                         }
                         if (destinyRequest != null) {
@@ -486,7 +480,7 @@ public class RewriteFilter implements Filter {
                         requestURI = null;
                     String access_token = req.getParameter("access_token");
                     System.out.println("context-path=" + request.getContextPath());
-                    String mainSessionId = (String) session.getAttribute(MAIN_SESSION_ID);
+                    String mainSessionId = (String) session.getAttribute(MASTER_SESSION_ID);
                     if (access_token != null && user == null) {
                         String[] tr = access_token.split("[.]");
                         String sessionId = tr[2];
@@ -498,7 +492,7 @@ public class RewriteFilter implements Filter {
                             user = ((UserFacadeLocal) (new InitialContext()).lookup("java:module/UserFacade"))
                                     .initSession(Integer.valueOf(uid));
                             if (user != null) {
-                                session.setAttribute(MAIN_SESSION_ID, sessionId);
+                                session.setAttribute(MASTER_SESSION_ID, sessionId);
                                 System.out.println("session.getId()=" + session.getId() + " guarda mainSessionId="
                                         + mainSessionId + " USER INICIADO=" + user + " en contextPath=" + contextPath
                                         + " Despues se redirige a /" + requestURI);
@@ -509,7 +503,7 @@ public class RewriteFilter implements Filter {
                             System.out.println("fallo valido se inicia session " + sessionId);
                         }
                     } else if (user != null) {
-                        mainSessionId = (String) session.getAttribute(MAIN_SESSION_ID);
+                        mainSessionId = (String) session.getAttribute(MASTER_SESSION_ID);
                         int uid = ((Integer) this.client.target("http://localhost:" + X.getRequest().getLocalPort()
                                 + "/api/session/logged/" + mainSessionId).request().get(Integer.class)).intValue();
                         if (uid <= 0) {
@@ -527,6 +521,49 @@ public class RewriteFilter implements Filter {
             e.printStackTrace();
             return false;
         }
+        return true;
+    }
+
+    private boolean redirectToSlave(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            String destinyRequest,
+            User user) throws IOException {
+
+        if (XUtil.isEmpty(destinyRequest)
+                || user == null
+                || user.getUid().intValue() <= 0) {
+            return false;
+        }
+
+        String masterSessionId = request.getSession().getId();
+
+        String accessToken = X.toText(X.getClientIpAddr(request)).replace(".", "")
+                + "."
+                + Character.MIN_VALUE
+                + "."
+                + masterSessionId;
+
+        Cookie cookie = new Cookie(
+                "MASTER_SESSION_ID",
+                masterSessionId);
+
+        cookie.setPath("/");
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true);
+        cookie.setMaxAge(60);
+
+        response.addCookie(cookie);
+
+        System.out.println(
+                "MASTER -> SLAVE"
+                        + " destiny=" + destinyRequest
+                        + " sessionId=" + masterSessionId);
+
+        response.sendRedirect(
+                "/" + destinyRequest
+                        + "?access_token=" + accessToken);
+
         return true;
     }
 
