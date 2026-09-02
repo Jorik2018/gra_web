@@ -308,24 +308,18 @@ public class RewriteFilter implements Filter {
                     chain.doFilter(request, (ServletResponse) response);
                     return false;
                 }
-                System.out.println(traceId + " 2 token=" + jwtToken);
-
                 if (session == null) {
                     session = request.getSession(true);
-                    System.out.println(
-                            "FILTER CREA SESSION " + session.getId() + " - " + URI + " res=" + response.getStatus());
                 }
                 System.out.println(traceId + " 4 " + requestURI + "  Q=>" + X.gson.toJson(q));
                 X.setSession(session);
-
                 X.setRequest(request);
                 request.setAttribute("_MSG", session.getAttribute("_MSG"));
                 session.removeAttribute("_MSG");
                 User user = (User) session.getAttribute("_USER");
                 System.out
-                        .println(traceId + " 6 " + "req.getAttribute(X.NO_LOAD)  =>" + request.getAttribute(X.NO_LOAD));
-                System.out.println(traceId + " 6 " + user);
-
+                        .println(traceId + " 6 " + user + " req.getAttribute(X.NO_LOAD)  =>"
+                                + request.getAttribute(X.NO_LOAD));
                 String logout = request.getParameter("action");
                 if ("logout".equals(logout)) {
                     ((UserFacadeLocal) (new InitialContext()).lookup("java:module/UserFacade")).logout();
@@ -408,6 +402,13 @@ public class RewriteFilter implements Filter {
                                 System.out.println(
                                         "MASTER LOGIN OK uid=" + loggedUser.getUid());
                                 if (!XUtil.isEmpty(destinyRequest)) {
+                                    if (redirectToSlave(
+                                            request,
+                                            response,
+                                            destinyRequest,
+                                            loggedUser)) {
+                                        return false;
+                                    }
                                     response.sendRedirect("/" + destinyRequest);
                                 } else {
                                     response.sendRedirect("/admin");
@@ -542,21 +543,34 @@ public class RewriteFilter implements Filter {
                 || user.getUid().intValue() <= 0) {
             return false;
         }
+
         String masterSessionId = request.getSession().getId();
+
         String ip = X.toText(
                 X.getClientIpAddr(request)).replace(".", "");
+
         String accessToken = ip + ".0." + masterSessionId;
+
         Cookie cookie = new Cookie(
                 "MASTER_SESSION_ID",
                 masterSessionId);
+
         cookie.setPath("/");
         cookie.setHttpOnly(true);
         cookie.setSecure(true);
         cookie.setMaxAge(60);
+
         response.addCookie(cookie);
+
+        System.out.println(
+                "MASTER -> DESTINY "
+                        + destinyRequest
+                        + " session=" + masterSessionId);
+
         response.sendRedirect(
                 "/" + destinyRequest
                         + "?access_token=" + accessToken);
+
         return true;
     }
 
