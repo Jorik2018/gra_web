@@ -543,9 +543,7 @@ private String refreshAccessToken(
 
     try {
         String url =
-                "http://localhost:"
-                + request.getLocalPort()
-                + "/api/auth/refresh";
+                "http://localhost/api/auth/refresh";
 
         response = client
                 .target(url)
