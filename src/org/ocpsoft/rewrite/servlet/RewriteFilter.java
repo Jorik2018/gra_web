@@ -369,9 +369,9 @@ public class RewriteFilter implements Filter {
                     }
                 }
 
-                String jwtRefreshToken = getCookieValue(request, "refreshToken");
+                String jwtRefreshToken = getCookieValue(request, "refreshToken",traceId);
 
-                System.out.println("======traceId="+traceId+" user = " + user+ " URI="+requestURI);
+                System.out.println("======traceId="+traceId+" user = " + user+ " URI="+requestURI+" jwtRefreshToken="+jwtRefreshToken);
                 if (user != null
                         || jwtRefreshToken != null
                         || requestURI.startsWith("login")
@@ -598,12 +598,14 @@ public class RewriteFilter implements Filter {
 
     private String getCookieValue(
             HttpServletRequest request,
-            String name) {
+            String name,int id) {
         Cookie[] cookies = request.getCookies();
+
         if (cookies == null) {
             return null;
         }
         for (Cookie cookie : cookies) {
+            system.out.println("=== "+id+" cookie=" + cookie.getName() + " value=" + cookie.getValue());
             if (name.equals(cookie.getName())) {
                 return cookie.getValue();
             }
