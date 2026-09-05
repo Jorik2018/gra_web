@@ -396,8 +396,9 @@ public class RewriteFilter implements Filter {
                             }
                         }
                         if (!(user != null && user.getUid() > 0) && !XUtil.isEmpty(jwtRefreshToken)) {// login master
-                            System.out.println("======traceId="+traceId+" refreshAccessToken jwtRefreshToken=" + jwtRefreshToken);
+                            System.out.println("======traceId="+traceId+" refreshAccessToken = " + jwtRefreshToken);
                             String jwtToken = refreshAccessToken(request, jwtRefreshToken);
+                            System.out.println("======traceId="+traceId+" jwtToken = " + jwtToken);
                             if (!XUtil.isEmpty(jwtToken)) {
                                 User loggedUser = initSessionFromJwt(jwtToken);
                                 if (loggedUser != null) {
