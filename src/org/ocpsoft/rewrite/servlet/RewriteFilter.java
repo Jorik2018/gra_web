@@ -299,9 +299,6 @@ public class RewriteFilter implements Filter {
                     request.setAttribute("#requestURI", requestURI);
                 }
                 String URI = requestURI.toLowerCase();
-
-                System.out.println(traceId + " 3 " + requestURI + "  Q=>" + X.gson.toJson(q) + ". getCookies="
-                        + request.getCookies());
                 if (isStaticResource(URI)) {
                     request.setAttribute(X.NO_LOAD, Boolean.valueOf(true));
                     String destinyRequest = request.getParameter("destiny");
@@ -313,7 +310,6 @@ public class RewriteFilter implements Filter {
                 if (session == null) {
                     session = request.getSession(true);
                 }
-                System.out.println(traceId + " 4 " + requestURI + "  Q=>" + X.gson.toJson(q));
                 X.setSession(session);
                 X.setRequest(request);
                 request.setAttribute("_MSG", session.getAttribute("_MSG"));
@@ -396,7 +392,7 @@ public class RewriteFilter implements Filter {
                             }
                         }
                         if (!(user != null && user.getUid() > 0) && !XUtil.isEmpty(jwtRefreshToken)) {// login master
-
+                            System.out.println("======traceId="+traceId+" refreshAccessToken jwtRefreshToken=" + jwtRefreshToken);
                             String jwtToken = refreshAccessToken(request, jwtRefreshToken);
                             if (!XUtil.isEmpty(jwtToken)) {
                                 User loggedUser = initSessionFromJwt(jwtToken);
