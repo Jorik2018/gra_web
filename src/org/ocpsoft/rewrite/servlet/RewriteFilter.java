@@ -300,6 +300,9 @@ public class RewriteFilter implements Filter {
                 }
                 String URI = requestURI.toLowerCase();
                 String jwtToken = req.getParameter("token");
+                if (XUtil.isEmpty(jwtToken)) {
+                    jwtToken = getCookieValue(request, "access_token");
+                }
                 if (isStaticResource(URI)) {
                     request.setAttribute(X.NO_LOAD, Boolean.valueOf(true));
                     String destinyRequest = request.getParameter("destiny");
@@ -377,11 +380,6 @@ public class RewriteFilter implements Filter {
                     {
                         X.DEBUG = true;
                         String destinyRequest = req.getParameter("destiny");
-                        System.out.println(
-                                traceId
-                                        + " SESSION CHECK id=" + session.getId()
-                                        + " user=" + session.getAttribute("_USER") + ". destinyRequest="
-                                        + destinyRequest);
                         if (user != null && !contextPath.equals("")) {// verificar master session valida (mejorar usando
                                                                       // api/auth)
                             String mainSessionId = (String) session.getAttribute(MASTER_SESSION_ID);
@@ -530,6 +528,25 @@ public class RewriteFilter implements Filter {
         }
         return true;
     }
+
+    private String getCookieValue(
+        HttpServletRequest request,
+        String name) {
+
+    Cookie[] cookies = request.getCookies();
+
+    if (cookies == null) {
+        return null;
+    }
+
+    for (Cookie cookie : cookies) {
+        if (name.equals(cookie.getName())) {
+            return cookie.getValue();
+        }
+    }
+
+    return null;
+}
 
     private boolean redirectToSlave(
             HttpServletRequest request,
