@@ -369,7 +369,7 @@ public class RewriteFilter implements Filter {
                     }
                 }
 
-                String jwtRefreshToken = getCookieValue(request, "refreshToken",traceId);
+                String jwtRefreshToken = getCookieValue(request, "refreshToken");
 
                 System.out.println("======traceId="+traceId+" user = " + user+ " URI="+requestURI+" jwtRefreshToken="+jwtRefreshToken);
                 if (user != null
@@ -535,77 +535,70 @@ public class RewriteFilter implements Filter {
         return true;
     }
 
-    @SuppressWarnings("unchecked")
-    private String refreshAccessToken(
-            HttpServletRequest request,
-            String refreshToken) {
+private String refreshAccessToken(
+        HttpServletRequest request,
+        String refreshToken) {
 
-        Response refreshResponse = null;
+    Response response = null;
 
-        try {
+    try {
+        String url =
+                "http://localhost:"
+                + request.getLocalPort()
+                + "/api/auth/refresh";
 
-            String refreshUrl = "http://localhost:"
-                    + request.getLocalPort()
-                    + "/api/auth/refresh";
+        response = client
+                .target(url)
+                .request(MediaType.APPLICATION_JSON_TYPE)
+                .cookie("refreshToken", refreshToken)
+                .post(Entity.json(Collections.emptyMap()));
 
-            refreshResponse = client
-                    .target(refreshUrl)
-                    .request(MediaType.APPLICATION_JSON_TYPE)
-                    .cookie("refreshToken", refreshToken)
-                    .post(
-                            Entity.json(
-                                    Collections.emptyMap()));
+        int status = response.getStatus();
 
-            if (refreshResponse.getStatus() != 200) {
+        if (status != 200) {
 
-                System.out.println(
-                        "REFRESH TOKEN INVALID status="
-                                + refreshResponse.getStatus());
+            String body = response.hasEntity()
+                    ? response.readEntity(String.class)
+                    : "";
 
-                return null;
-            }
-
-            Map<String, Object> result = refreshResponse.readEntity(Map.class);
-
-            Object token = result.get("token");
-
-            if (token == null) {
-                System.out.println(
-                        "REFRESH RESPONSE WITHOUT ACCESS TOKEN");
-
-                return null;
-            }
-
-            return token.toString();
-
-        } catch (Exception e) {
-
-            System.err.println(
-                    "ERROR REFRESHING ACCESS TOKEN: "
-                            + e.getMessage());
-
-            e.printStackTrace();
+            System.out.println(
+                    "REFRESH FAILED status="
+                    + status
+                    + " body="
+                    + body
+            );
 
             return null;
+        }
 
-        } finally {
+        Map result = response.readEntity(Map.class);
 
-            if (refreshResponse != null) {
-                refreshResponse.close();
-            }
+        Object token = result.get("token");
+
+        return token != null
+                ? token.toString()
+                : null;
+
+    } catch (Exception e) {
+        e.printStackTrace();
+        return null;
+
+    } finally {
+        if (response != null) {
+            response.close();
         }
     }
+}
 
     private String getCookieValue(
             HttpServletRequest request,
-            String name,int id) {
+            String name) {
         Cookie[] cookies = request.getCookies();
 
         if (cookies == null) {
             return null;
         }
         for (Cookie cookie : cookies) {
-            System.out.println("=== "+id+" cookie=" + cookie.getName() + " value=" + cookie.getValue());
             if (name.equals(cookie.getName())) {
                 return cookie.getValue();
             }
