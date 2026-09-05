@@ -394,7 +394,7 @@ public class RewriteFilter implements Filter {
                                 return false;
                             }
                         }
-                        if (!XUtil.isEmpty(jwtToken)) {// login master
+                        if (!(user != null && user.getUid() > 0) && !XUtil.isEmpty(jwtToken)) {// login master
                             User loggedUser = initSessionFromJwt(jwtToken);
                             if (loggedUser != null) {
                                 System.out.println(
@@ -530,23 +530,23 @@ public class RewriteFilter implements Filter {
     }
 
     private String getCookieValue(
-        HttpServletRequest request,
-        String name) {
+            HttpServletRequest request,
+            String name) {
 
-    Cookie[] cookies = request.getCookies();
+        Cookie[] cookies = request.getCookies();
 
-    if (cookies == null) {
+        if (cookies == null) {
+            return null;
+        }
+
+        for (Cookie cookie : cookies) {
+            if (name.equals(cookie.getName())) {
+                return cookie.getValue();
+            }
+        }
+
         return null;
     }
-
-    for (Cookie cookie : cookies) {
-        if (name.equals(cookie.getName())) {
-            return cookie.getValue();
-        }
-    }
-
-    return null;
-}
 
     private boolean redirectToSlave(
             HttpServletRequest request,
