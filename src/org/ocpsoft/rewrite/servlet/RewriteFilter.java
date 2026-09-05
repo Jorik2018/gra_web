@@ -532,7 +532,7 @@ public class RewriteFilter implements Filter {
 
     private String getCookieValue(
             HttpServletRequest request,
-            String name,String id) {
+            String name,int id) {
 
         Cookie[] cookies = request.getCookies();
 
