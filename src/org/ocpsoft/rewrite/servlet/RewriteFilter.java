@@ -605,7 +605,7 @@ public class RewriteFilter implements Filter {
             return null;
         }
         for (Cookie cookie : cookies) {
-            system.out.println("=== "+id+" cookie=" + cookie.getName() + " value=" + cookie.getValue());
+            System.out.println("=== "+id+" cookie=" + cookie.getName() + " value=" + cookie.getValue());
             if (name.equals(cookie.getName())) {
                 return cookie.getValue();
             }
