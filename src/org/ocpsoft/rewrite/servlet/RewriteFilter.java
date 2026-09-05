@@ -299,11 +299,9 @@ public class RewriteFilter implements Filter {
                     request.setAttribute("#requestURI", requestURI);
                 }
                 String URI = requestURI.toLowerCase();
-                String jwtToken = req.getParameter("token");
-                if (XUtil.isEmpty(jwtToken)) {
-                    jwtToken = getCookieValue(request, "access_token",traceId);
-                }
-                System.out.println(traceId + " 3 " + requestURI + "  Q=>" + X.gson.toJson(q)+". getCookies="+request.getCookies());
+
+                System.out.println(traceId + " 3 " + requestURI + "  Q=>" + X.gson.toJson(q) + ". getCookies="
+                        + request.getCookies());
                 if (isStaticResource(URI)) {
                     request.setAttribute(X.NO_LOAD, Boolean.valueOf(true));
                     String destinyRequest = request.getParameter("destiny");
@@ -371,8 +369,10 @@ public class RewriteFilter implements Filter {
                     }
                 }
 
+                String jwtRefreshToken = getCookieValue(request, "refreshToken");
+
                 if (user != null
-                        || jwtToken != null
+                        || jwtRefreshToken != null
                         || requestURI.startsWith("login")
                         || requestURI.endsWith("/register")
                         || requestURI.startsWith("user/reset/")
@@ -395,24 +395,26 @@ public class RewriteFilter implements Filter {
                                 return false;
                             }
                         }
-                        if (!(user != null && user.getUid() > 0) && !XUtil.isEmpty(jwtToken)) {// login master
-                            User loggedUser = initSessionFromJwt(jwtToken);
-                            if (loggedUser != null) {
-                                System.out.println(
-                                        "MASTER LOGIN OK uid=" + loggedUser.getUid());
-                                if (!XUtil.isEmpty(destinyRequest)) {
-                                    if (redirectToSlave(
-                                            request,
-                                            response,
-                                            destinyRequest,
-                                            loggedUser)) {
-                                        return false;
+                        if (!(user != null && user.getUid() > 0) && !XUtil.isEmpty(jwtRefreshToken)) {// login master
+
+                            String jwtToken = refreshAccessToken(request, jwtRefreshToken);
+                            if (!XUtil.isEmpty(jwtToken)) {
+                                User loggedUser = initSessionFromJwt(jwtToken);
+                                if (loggedUser != null) {
+                                    if (!XUtil.isEmpty(destinyRequest)) {
+                                        if (redirectToSlave(
+                                                request,
+                                                response,
+                                                destinyRequest,
+                                                loggedUser)) {
+                                            return false;
+                                        }
+                                        response.sendRedirect("/" + destinyRequest);
+                                    } else {
+                                        response.sendRedirect("/admin");
                                     }
-                                    response.sendRedirect("/" + destinyRequest);
-                                } else {
-                                    response.sendRedirect("/admin");
+                                    return false;
                                 }
-                                return false;
                             }
                             // mostrar mensaje de error de login
                             if (!XUtil.isEmpty(destinyRequest)) {
@@ -530,24 +532,79 @@ public class RewriteFilter implements Filter {
         return true;
     }
 
+    @SuppressWarnings("unchecked")
+    private String refreshAccessToken(
+            HttpServletRequest request,
+            String refreshToken) {
+
+        Response refreshResponse = null;
+
+        try {
+
+            String refreshUrl = "http://localhost:"
+                    + request.getLocalPort()
+                    + "/api/auth/refresh";
+
+            refreshResponse = client
+                    .target(refreshUrl)
+                    .request(MediaType.APPLICATION_JSON_TYPE)
+                    .cookie("refreshToken", refreshToken)
+                    .post(
+                            Entity.json(
+                                    Collections.emptyMap()));
+
+            if (refreshResponse.getStatus() != 200) {
+
+                System.out.println(
+                        "REFRESH TOKEN INVALID status="
+                                + refreshResponse.getStatus());
+
+                return null;
+            }
+
+            Map<String, Object> result = refreshResponse.readEntity(Map.class);
+
+            Object token = result.get("token");
+
+            if (token == null) {
+                System.out.println(
+                        "REFRESH RESPONSE WITHOUT ACCESS TOKEN");
+
+                return null;
+            }
+
+            return token.toString();
+
+        } catch (Exception e) {
+
+            System.err.println(
+                    "ERROR REFRESHING ACCESS TOKEN: "
+                            + e.getMessage());
+
+            e.printStackTrace();
+
+            return null;
+
+        } finally {
+
+            if (refreshResponse != null) {
+                refreshResponse.close();
+            }
+        }
+    }
+
     private String getCookieValue(
             HttpServletRequest request,
-            String name,int id) {
-
+            String name) {
         Cookie[] cookies = request.getCookies();
-
         if (cookies == null) {
             return null;
         }
-
-        System.out.println("=====-"+id+" cookie.length=" + cookies.length);
         for (Cookie cookie : cookies) {
-            System.out.println("=====-"+id+" cookie=" + cookie.getName() + " value=" + cookie.getValue());
             if (name.equals(cookie.getName())) {
                 return cookie.getValue();
             }
         }
-
         return null;
     }
 
