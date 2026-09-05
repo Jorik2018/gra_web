@@ -371,6 +371,7 @@ public class RewriteFilter implements Filter {
 
                 String jwtRefreshToken = getCookieValue(request, "refreshToken");
 
+                System.out.println("======traceId="+traceId+" user = " + user+ " URI="+requestURI+" destinyRequest="+destinyRequest);
                 if (user != null
                         || jwtRefreshToken != null
                         || requestURI.startsWith("login")
@@ -381,7 +382,6 @@ public class RewriteFilter implements Filter {
                     {
                         X.DEBUG = true;
                         String destinyRequest = req.getParameter("destiny");
-                        System.out.println("======traceId="+traceId+" user = " + user+ " URI="+requestURI+" destinyRequest="+destinyRequest);
                         if (user != null && !contextPath.equals("")) {// verificar master session valida (mejorar usando
                                                                       // api/auth)
                             String mainSessionId = (String) session.getAttribute(MASTER_SESSION_ID);
