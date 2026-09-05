@@ -303,7 +303,7 @@ public class RewriteFilter implements Filter {
                 if (XUtil.isEmpty(jwtToken)) {
                     jwtToken = getCookieValue(request, "access_token",traceId);
                 }
-                System.out.println(traceId + " 3 " + requestURI + "  Q=>" + X.gson.toJson(q));
+                System.out.println(traceId + " 3 " + requestURI + "  Q=>" + X.gson.toJson(q)+". getCookies="+request.getCookies());
                 if (isStaticResource(URI)) {
                     request.setAttribute(X.NO_LOAD, Boolean.valueOf(true));
                     String destinyRequest = request.getParameter("destiny");
@@ -540,6 +540,7 @@ public class RewriteFilter implements Filter {
             return null;
         }
 
+        System.out.println("=====-"+id+" cookie.length=" + cookies.length);
         for (Cookie cookie : cookies) {
             System.out.println("=====-"+id+" cookie=" + cookie.getName() + " value=" + cookie.getValue());
             if (name.equals(cookie.getName())) {
