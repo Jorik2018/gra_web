@@ -301,8 +301,9 @@ public class RewriteFilter implements Filter {
                 String URI = requestURI.toLowerCase();
                 String jwtToken = req.getParameter("token");
                 if (XUtil.isEmpty(jwtToken)) {
-                    jwtToken = getCookieValue(request, "access_token");
+                    jwtToken = getCookieValue(request, "access_token",traceId);
                 }
+                System.out.println(traceId + " 3 " + requestURI + "  Q=>" + X.gson.toJson(q));
                 if (isStaticResource(URI)) {
                     request.setAttribute(X.NO_LOAD, Boolean.valueOf(true));
                     String destinyRequest = request.getParameter("destiny");
@@ -531,7 +532,7 @@ public class RewriteFilter implements Filter {
 
     private String getCookieValue(
             HttpServletRequest request,
-            String name) {
+            String name,String id) {
 
         Cookie[] cookies = request.getCookies();
 
@@ -540,6 +541,7 @@ public class RewriteFilter implements Filter {
         }
 
         for (Cookie cookie : cookies) {
+            System.out.println("=====-"+id+" cookie=" + cookie.getName() + " value=" + cookie.getValue());
             if (name.equals(cookie.getName())) {
                 return cookie.getValue();
             }
