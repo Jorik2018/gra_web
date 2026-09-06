@@ -238,7 +238,7 @@ echo ========================================
 
 javac ^
   --release 8 ^
-  -cp "war_tmp\\WEB-INF\\lib\\*;lib\\*;%WILDFLY_HOME%\\modules\\system\\layers\\base\\javax\\json\\api\\main\\jakarta.json-api-1.1.6.jar;%WILDFLY_HOME%\\modules\\system\\layers\\base\\javax\\enterprise\\api\\main\\*;%WILDFLY_HOME%\\modules\\system\\layers\\base\\javax\\faces\\api\\main\\*" ^
+  -cp "war_tmp\\WEB-INF\\lib\\*;lib\\*;%WILDFLY_HOME%\\modules\\system\\layers\\base\\javax\\json\\api\\main\\jakarta.json-api-1.1.6.jar;%WILDFLY_HOME%\\modules\\system\\layers\\base\\javax\\enterprise\\api\\main\\*;%WILDFLY_HOME%\\modules\\system\\layers\\base\\javax\\faces\\api\\main\\*;%WILDFLY_HOME%\\modules\\system\\layers\\base\\javax\\inject\\api\\main\\*" ^
   -sourcepath src ^
   -d build\\classes ^
   @build\\sources.txt
