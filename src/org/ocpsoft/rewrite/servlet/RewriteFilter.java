@@ -334,7 +334,7 @@ public class RewriteFilter implements Filter {
                     if (destiny != null && !destiny.trim().isEmpty()) {
                         response.sendRedirect(destiny);
                     } else {
-                        response.sendRedirect("/login");
+                        response.sendRedirect("/admin");
                     }
                     return false;
                 }
