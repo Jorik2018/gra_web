@@ -4,7 +4,7 @@ pipeline {
     environment {
         WILDFLY_DEPLOY = 'C:\\wildfly-18.0.1.Final\\standalone\\deployments'
         WILDFLY_HOME   = 'C:\\wildfly-18.0.1.Final'
-
+        PYTHON_HOME = 'C:\\Tools\\Python312'
         WAR_NAME = 'gra_web.war'
 
         TARGET_JAR =
@@ -21,7 +21,21 @@ pipeline {
     }
 
     stages {
+        stage('Check Environment') {
+            steps {
+                bat '''
+                    echo ==============================
+                    echo PYTHON
+                    echo ==============================
 
+                    SET PATH=%PYTHON_HOME%;%PYTHON_HOME%\\Scripts;%PATH%
+
+                    python --version
+                    python -m pip --version
+
+                '''
+            }
+        }
         /*
          * Extraemos el WAR solamente para disponer de
          * WEB-INF/lib como classpath durante javac.
