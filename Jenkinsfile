@@ -5,6 +5,7 @@ pipeline {
         WILDFLY_DEPLOY = 'C:\\wildfly-18.0.1.Final\\standalone\\deployments'
         WILDFLY_HOME   = 'C:\\wildfly-18.0.1.Final'
         PYTHON_HOME = 'C:\\Tools\\Python312'
+        PYTHON_EXE = 'C:\\Tools\\Python312\\python.exe'
         WAR_NAME = 'gra_web.war'
 
         TARGET_JAR =
@@ -81,19 +82,18 @@ pipeline {
                     echo.
                     echo ===== PYTHON =====
 
-                    where python
+if not exist "%PYTHON_EXE%" (
+    echo ERROR: Python no encontrado:
+    echo %PYTHON_EXE%
+    exit /b 1
+)
 
-                    if errorlevel 1 (
-                        echo ERROR: Python no encontrado
-                        exit /b 1
-                    )
+"%PYTHON_EXE%" --version
 
-                    python --version
-
-                    if errorlevel 1 (
-                        echo ERROR: Python no funciona
-                        exit /b 1
-                    )
+if errorlevel 1 (
+    echo ERROR: Python no funciona
+    exit /b 1
+)
 
                     echo.
                     echo ===== JAVA =====
@@ -308,12 +308,12 @@ pipeline {
                     echo SURGICAL WAR PATCH
                     echo ========================================
 
-                    python "%PATCH_SCRIPT%" ^
-                      --war "%WILDFLY_DEPLOY%\\%WAR_NAME%" ^
-                      --classes "build\\classes" ^
-                      --output "patched\\%WAR_NAME%" ^
-                      --patch "%TARGET_JAR%=org.ocpsoft.rewrite.servlet.RewriteFilter" ^
-                      --patch "%TARGET_ISOBIT_JAR%=org.isobit.app.jsf.UserController"
+"%PYTHON_EXE%" "%PATCH_SCRIPT%" ^
+  --war "%WILDFLY_DEPLOY%\\%WAR_NAME%" ^
+  --classes "build\\classes" ^
+  --output "patched\\%WAR_NAME%" ^
+  --patch "%TARGET_JAR%=org.ocpsoft.rewrite.servlet.RewriteFilter" ^
+  --patch "%TARGET_ISOBIT_JAR%=org.isobit.app.jsf.UserController"
 
                     if errorlevel 1 (
                         echo ERROR: Fallo patch_war.py
