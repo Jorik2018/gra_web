@@ -11,6 +11,7 @@ import javax.faces.component.UIComponent;
 import javax.faces.context.FacesContext;
 import javax.faces.validator.ValidatorException;
 import javax.inject.Named;
+import javax.servlet.http.Cookie;
 import org.isobit.app.X;
 import org.isobit.app.ejb.UserFacadeLocal;
 import org.isobit.app.jpa.User;
