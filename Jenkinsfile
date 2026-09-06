@@ -14,7 +14,7 @@ pipeline {
             'isobit.jar'
 
         PATCH_SCRIPT =
-            'D:\\wildfly\\wildflybin\\patch_war.py'
+            'D:\\wildfly\\wildfly\\bin\\patch_war.py'
 
         BACKUP_ROOT =
             'D:\\backup_gra_web'
