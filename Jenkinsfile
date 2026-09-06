@@ -179,114 +179,115 @@ if errorlevel 1 (
          * patch_war.py decide cuales entran realmente.
          */
         stage('COMPILE ALL') {
-            tools {
-                jdk 'JDK 17'
-            }
+    tools {
+        jdk 'JDK 17'
+    }
 
-            steps {
-                bat '''
-                    @echo off
-                    setlocal EnableDelayedExpansion
+    steps {
+        bat '''
+            @echo off
+            setlocal EnableDelayedExpansion
 
-                    echo ========================================
-                    echo COMPILE ALL JAVA SOURCES
-                    echo ========================================
+            echo ========================================
+            echo COMPILE ALL JAVA SOURCES
+            echo ========================================
 
-                    if not exist src (
-                        echo ERROR: No existe directorio src
-                        exit /b 1
-                    )
+            if not exist src (
+                echo ERROR: No existe directorio src
+                exit /b 1
+            )
 
-                    if exist build\\sources.txt (
-                        del /F /Q build\\sources.txt
-                    )
+            if exist build\\sources.txt (
+                del /F /Q build\\sources.txt
+            )
 
-                    echo.
-                    echo Generando lista de fuentes...
+            echo.
+            echo Generando lista de fuentes...
 
-for /R src %%F in (*.java) do (
-    set "SOURCE=%%F"
-    set "SOURCE=!SOURCE:\=/!"
-    echo "!SOURCE!">>build\sources.txt
-)
+            powershell -NoProfile -Command ^
+              "Get-ChildItem -Path src -Recurse -Filter *.java | ForEach-Object { '\\"' + ($_.FullName -replace '\\\\','/') + '\\"' } | Set-Content -Encoding ASCII build\\sources.txt"
 
+            if errorlevel 1 (
+                echo ERROR: No se pudo generar sources.txt
+                exit /b 1
+            )
 
-                    if not exist build\\sources.txt (
-                        echo ERROR: No se encontraron fuentes Java
-                        exit /b 1
-                    )
+            if not exist build\\sources.txt (
+                echo ERROR: No se encontraron fuentes Java
+                exit /b 1
+            )
 
-                    echo.
-                    echo ===== SOURCES =====
+            echo.
+            echo ===== SOURCES =====
 
-                    for /F %%C in ('type build\\sources.txt ^| find /C /V ""') do (
-                        set SOURCE_COUNT=%%C
-                    )
+            for /F %%C in ('type build\\sources.txt ^| find /C /V ""') do (
+                set SOURCE_COUNT=%%C
+            )
 
-                    echo Total fuentes: !SOURCE_COUNT!
+            echo Total fuentes: !SOURCE_COUNT!
 
-                    if "!SOURCE_COUNT!"=="0" (
-                        echo ERROR: No hay fuentes Java
-                        exit /b 1
-                    )
+            if "!SOURCE_COUNT!"=="0" (
+                echo ERROR: No hay fuentes Java
+                exit /b 1
+            )
 
-                    echo.
-                    echo ========================================
-                    echo JAVAC
-                    echo ========================================
+            echo.
+            echo ========================================
+            echo JAVAC
+            echo ========================================
 
-                    javac ^
-                      --release 8 ^
-                      -cp "war_tmp\\WEB-INF\\lib\\*;lib\\*;%WILDFLY_HOME%\\modules\\system\\layers\\base\\javax\\json\\api\\main\\jakarta.json-api-1.1.6.jar" ^
-                      -sourcepath src ^
-                      -d build\\classes ^
-                      @build\\sources.txt
+            javac ^
+              --release 8 ^
+              -cp "war_tmp\\WEB-INF\\lib\\*;lib\\*;%WILDFLY_HOME%\\modules\\system\\layers\\base\\javax\\json\\api\\main\\jakarta.json-api-1.1.6.jar" ^
+              -sourcepath src ^
+              -d build\\classes ^
+              @build\\sources.txt
 
-                    if errorlevel 1 (
-                        echo ERROR: Fallo compilacion Java
-                        exit /b 1
-                    )
+            if errorlevel 1 (
+                echo ERROR: Fallo compilacion Java
+                exit /b 1
+            )
 
-                    echo.
-                    echo ========================================
-                    echo CLASSES GENERADAS
-                    echo ========================================
+            echo.
+            echo ========================================
+            echo CLASSES GENERADAS
+            echo ========================================
 
-                    for /F %%C in ('dir /S /B build\\classes\\*.class 2^>nul ^| find /C /V ""') do (
-                        set CLASS_COUNT=%%C
-                    )
+            for /F %%C in ('dir /S /B build\\classes\\*.class 2^>nul ^| find /C /V ""') do (
+                set CLASS_COUNT=%%C
+            )
 
-                    echo Total classes: !CLASS_COUNT!
+            echo Total classes: !CLASS_COUNT!
 
-                    echo.
-                    echo ===== RewriteFilter =====
+            echo.
+            echo ===== RewriteFilter =====
 
-                    if not exist "build\\classes\\org\\ocpsoft\\rewrite\\servlet\\RewriteFilter.class" (
-                        echo ERROR: RewriteFilter.class no fue generado
-                        exit /b 1
-                    )
+            if not exist "build\\classes\\org\\ocpsoft\\rewrite\\servlet\\RewriteFilter.class" (
+                echo ERROR: RewriteFilter.class no fue generado
+                exit /b 1
+            )
 
-                    dir /B ^
-                      "build\\classes\\org\\ocpsoft\\rewrite\\servlet\\RewriteFilter*.class"
+            dir /B ^
+              "build\\classes\\org\\ocpsoft\\rewrite\\servlet\\RewriteFilter*.class"
 
-                    echo.
-                    echo ===== UserController =====
+            echo.
+            echo ===== UserController =====
 
-                    if not exist "build\\classes\\org\\isobit\\app\\jsf\\UserController.class" (
-                        echo ERROR: UserController.class no fue generado
-                        exit /b 1
-                    )
+            if not exist "build\\classes\\org\\isobit\\app\\jsf\\UserController.class" (
+                echo ERROR: UserController.class no fue generado
+                exit /b 1
+            )
 
-                    dir /B ^
-                      "build\\classes\\org\\isobit\\app\\jsf\\UserController*.class"
+            dir /B ^
+              "build\\classes\\org\\isobit\\app\\jsf\\UserController*.class"
 
-                    echo.
-                    echo COMPILE OK
+            echo.
+            echo COMPILE OK
 
-                    endlocal
-                '''
-            }
-        }
+            endlocal
+        '''
+    }
+}
 
 
         /*
