@@ -204,9 +204,12 @@ if errorlevel 1 (
                     echo.
                     echo Generando lista de fuentes...
 
-                    for /R src %%F in (*.java) do (
-                        echo "%%F">>build\\sources.txt
-                    )
+for /R src %%F in (*.java) do (
+    set "SOURCE=%%F"
+    set "SOURCE=!SOURCE:\=/!"
+    echo "!SOURCE!">>build\sources.txt
+)
+
 
                     if not exist build\\sources.txt (
                         echo ERROR: No se encontraron fuentes Java
