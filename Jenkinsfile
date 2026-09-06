@@ -237,7 +237,7 @@ echo JAVAC
 echo ========================================
 
 dir /S /B "C:/wildfly-18.0.1.Final/modules/system/layers/base/*el*.jar"
-
+echo ----------
 
 javac ^
   --release 8 ^
