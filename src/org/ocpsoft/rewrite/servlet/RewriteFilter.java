@@ -322,7 +322,7 @@ public class RewriteFilter implements Filter {
                 System.out
                         .println(traceId + " 6 " + user + " req.getAttribute(X.NO_LOAD)  =>"
                                 + request.getAttribute(X.NO_LOAD));
-                if ((q.length > 1 && "logout".equals(q[1]))) {
+                if (("logout".equals(q[0]))) {
                     ((UserFacadeLocal) (new InitialContext()).lookup("java:module/UserFacade")).logout();
                     Cookie refreshCookie = new Cookie("refreshToken", "");
                     refreshCookie.setPath("/");
