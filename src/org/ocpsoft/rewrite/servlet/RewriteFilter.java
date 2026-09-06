@@ -322,10 +322,20 @@ public class RewriteFilter implements Filter {
                 System.out
                         .println(traceId + " 6 " + user + " req.getAttribute(X.NO_LOAD)  =>"
                                 + request.getAttribute(X.NO_LOAD));
-                String logout = request.getParameter("action");
-                if ("logout".equals(logout)) {
+                if ((q.length > 1 && "logout".equals(q[1]))) {
                     ((UserFacadeLocal) (new InitialContext()).lookup("java:module/UserFacade")).logout();
+                    Cookie refreshCookie = new Cookie("refreshToken", "");
+                    refreshCookie.setPath("/");
+                    refreshCookie.setMaxAge(0);
+                    refreshCookie.setHttpOnly(true);
+                    refreshCookie.setSecure(true);
+                    response.addCookie(refreshCookie);
                     response.sendRedirect("/" + requestURI);
+                    if (destiny != null && !destiny.trim().isEmpty()) {
+                        response.sendRedirect(destiny);
+                    } else {
+                        response.sendRedirect("/login");
+                    }
                     return false;
                 }
                 if (request.getAttribute(X.NO_LOAD) != null) {
@@ -371,7 +381,8 @@ public class RewriteFilter implements Filter {
 
                 String jwtRefreshToken = getCookieValue(request, "refreshToken");
 
-                System.out.println("======traceId="+traceId+" user = " + user+ " URI="+requestURI+" jwtRefreshToken="+jwtRefreshToken);
+                System.out.println("======traceId=" + traceId + " user = " + user + " URI=" + requestURI
+                        + " jwtRefreshToken=" + jwtRefreshToken);
                 if (user != null
                         || jwtRefreshToken != null
                         || requestURI.startsWith("login")
@@ -382,7 +393,7 @@ public class RewriteFilter implements Filter {
                     {
                         X.DEBUG = true;
                         String destinyRequest = req.getParameter("destiny");
-                        System.out.println("======traceId="+traceId+" destinyRequest = " + destinyRequest);
+                        System.out.println("======traceId=" + traceId + " destinyRequest = " + destinyRequest);
                         if (user != null && !contextPath.equals("")) {// verificar master session valida (mejorar usando
                                                                       // api/auth)
                             String mainSessionId = (String) session.getAttribute(MASTER_SESSION_ID);
@@ -398,9 +409,9 @@ public class RewriteFilter implements Filter {
                             }
                         }
                         if (!(user != null && user.getUid() > 0) && !XUtil.isEmpty(jwtRefreshToken)) {// login master
-                            System.out.println("======traceId="+traceId+" refreshAccessToken = " + jwtRefreshToken);
+                            System.out.println("======traceId=" + traceId + " refreshAccessToken = " + jwtRefreshToken);
                             String jwtToken = refreshAccessToken(request, jwtRefreshToken);
-                            System.out.println("======traceId="+traceId+" jwtToken = " + jwtToken);
+                            System.out.println("======traceId=" + traceId + " jwtToken = " + jwtToken);
                             if (!XUtil.isEmpty(jwtToken)) {
                                 User loggedUser = initSessionFromJwt(jwtToken);
                                 if (loggedUser != null) {
@@ -535,58 +546,56 @@ public class RewriteFilter implements Filter {
         return true;
     }
 
-private String refreshAccessToken(
-        HttpServletRequest request,
-        String refreshToken) {
+    private String refreshAccessToken(
+            HttpServletRequest request,
+            String refreshToken) {
 
-    Response response = null;
+        Response response = null;
 
-    try {
-        String url =
-                "http://localhost/api/auth/refresh";
+        try {
+            String url = "http://localhost/api/auth/refresh";
 
-        response = client
-                .target(url)
-                .request(MediaType.APPLICATION_JSON_TYPE)
-                .cookie("refreshToken", refreshToken)
-                .post(Entity.json(Collections.emptyMap()));
+            response = client
+                    .target(url)
+                    .request(MediaType.APPLICATION_JSON_TYPE)
+                    .cookie("refreshToken", refreshToken)
+                    .post(Entity.json(Collections.emptyMap()));
 
-        int status = response.getStatus();
+            int status = response.getStatus();
 
-        if (status != 200) {
+            if (status != 200) {
 
-            String body = response.hasEntity()
-                    ? response.readEntity(String.class)
-                    : "";
+                String body = response.hasEntity()
+                        ? response.readEntity(String.class)
+                        : "";
 
-            System.out.println(
-                    "REFRESH FAILED status="
-                    + status
-                    + " body="
-                    + body
-            );
+                System.out.println(
+                        "REFRESH FAILED status="
+                                + status
+                                + " body="
+                                + body);
 
+                return null;
+            }
+
+            Map result = response.readEntity(Map.class);
+
+            Object token = result.get("token");
+
+            return token != null
+                    ? token.toString()
+                    : null;
+
+        } catch (Exception e) {
+            e.printStackTrace();
             return null;
-        }
 
-        Map result = response.readEntity(Map.class);
-
-        Object token = result.get("token");
-
-        return token != null
-                ? token.toString()
-                : null;
-
-    } catch (Exception e) {
-        e.printStackTrace();
-        return null;
-
-    } finally {
-        if (response != null) {
-            response.close();
+        } finally {
+            if (response != null) {
+                response.close();
+            }
         }
     }
-}
 
     private String getCookieValue(
             HttpServletRequest request,
