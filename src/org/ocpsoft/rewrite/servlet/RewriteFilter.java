@@ -330,7 +330,7 @@ public class RewriteFilter implements Filter {
                     refreshCookie.setHttpOnly(true);
                     refreshCookie.setSecure(true);
                     response.addCookie(refreshCookie);
-                    response.sendRedirect("/" + requestURI);
+                    String destiny = request.getParameter("destiny");
                     if (destiny != null && !destiny.trim().isEmpty()) {
                         response.sendRedirect(destiny);
                     } else {
