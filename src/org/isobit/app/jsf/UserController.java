@@ -167,10 +167,10 @@ public class UserController extends AbstractController<User> implements Serializ
     return u;
   }
 
-  public void preRenderView(Map<String, Integer> m) {
+  public void preRenderView(Map<String, Object> m) {
     String[] q = (String[]) X.getRequest().getAttribute("#q");
-    m.put("uid", Integer.valueOf(XUtil.intValue(q[2])));
-    m.put("timestamp", Integer.valueOf(XUtil.intValue(q[3])));
+    m.put("uid", XUtil.intValue(q[2]));
+    m.put("timestamp", XUtil.intValue(q[3]));
     m.put("hashedPass", q[4]);
     passReset(m);
   }
